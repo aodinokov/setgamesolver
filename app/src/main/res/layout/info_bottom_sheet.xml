@@ -132,10 +132,10 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/label_max_results"
-                android:textSize="@dimen/bottom_sheet_text_size"
                 android:layout_centerVertical="true"
-                android:textColor="@color/bottom_sheet_text_color" />
+                android:text="@string/label_expected_results_num"
+                android:textColor="@color/bottom_sheet_text_color"
+                android:textSize="@dimen/bottom_sheet_text_size" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -149,15 +149,16 @@
                     android:layout_height="@dimen/bottom_sheet_control_btn_size"
                     android:contentDescription="@string/alt_bottom_sheet_max_results_button_minus"
                     android:src="@drawable/ic_minus" />
+
                 <TextView
                     android:id="@+id/max_results_value"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:minEms="@integer/bottom_sheet_control_text_min_ems"
-                    android:gravity="center"
                     android:layout_marginLeft="@dimen/bottom_sheet_control_text_side_margin"
                     android:layout_marginRight="@dimen/bottom_sheet_control_text_side_margin"
-                    android:text="3"
+                    android:gravity="center"
+                    android:minEms="@integer/bottom_sheet_control_text_min_ems"
+                    android:text="9"
                     android:textColor="@color/bottom_sheet_text_color"
                     android:textSize="@dimen/bottom_sheet_text_size" />
                 <androidx.appcompat.widget.AppCompatImageButton

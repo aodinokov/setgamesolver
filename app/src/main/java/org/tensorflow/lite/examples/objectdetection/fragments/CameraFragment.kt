@@ -139,7 +139,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
         // When clicked, increase the number of objects that can be detected at a time
         fragmentCameraBinding.bottomSheetLayout.maxResultsPlus.setOnClickListener {
-            if (objectDetectorHelper.maxResults < 5) {
+            if (objectDetectorHelper.maxResults < 12) {
                 objectDetectorHelper.maxResults++
                 updateControlsUi()
             }

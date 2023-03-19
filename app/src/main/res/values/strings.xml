@@ -15,7 +15,7 @@
     ~ limitations under the License.
 -->
 <resources>
-    <string name="app_name">TFLite Object Detection</string>
+    <string name="app_name">Set Game solver</string>
 
     <string name="alt_bottom_sheet_chevron">Bottom sheet expandable indicator</string>
 
@@ -29,6 +29,9 @@
         results button</string>
     <string name="alt_bottom_sheet_thread_button_minus">Decrease the number of threads used</string>
     <string name="alt_bottom_sheet_thread_button_plus">Increase the number of threads used</string>
+
+    <string name="label_startstop_btn_start">Start</string>
+    <string name="label_startstop_btn_stop">Stop</string>
 
     <string name="label_interence_time">Inference Time</string>
     <string name="label_fps">Frames per Second</string>

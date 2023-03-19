@@ -33,6 +33,7 @@ class ObjectDetectorHelper(
   var maxResults: Int = 9,
   var currentDelegate: Int = 0,
   var currentModel: Int = 0,
+  var scanEnabled: Boolean = false,
   val context: Context,
   val objectDetectorListener: DetectorListener?
 ) {
@@ -107,6 +108,9 @@ class ObjectDetectorHelper(
             setupObjectDetector()
         }
 
+        if (!scanEnabled) {
+            return
+        }
         // Inference time is the difference between the system time at the start and finish of the
         // process
         var inferenceTime = SystemClock.uptimeMillis()
@@ -124,7 +128,7 @@ class ObjectDetectorHelper(
 
         val results = objectDetector?.detect(tensorImage)
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
-        objectDetectorListener?.onResults(
+        objectDetectorListener?.onRawResults(
             results,
             inferenceTime,
             tensorImage.height,
@@ -133,11 +137,18 @@ class ObjectDetectorHelper(
 
     interface DetectorListener {
         fun onError(error: String)
-        fun onResults(
+        fun onRawResults(
           results: MutableList<Detection>?,
           inferenceTime: Long,
           imageHeight: Int,
           imageWidth: Int
+        )
+
+        fun onSolution(
+            results: MutableList<Detection>?,
+            inferenceTime: Long,
+            imageHeight: Int,
+            imageWidth: Int
         )
     }
 

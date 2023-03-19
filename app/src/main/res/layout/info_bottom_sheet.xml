@@ -43,6 +43,12 @@
                 android:layout_centerVertical="true"
                 android:src="@drawable/icn_chevron_up"
                 android:contentDescription="@string/alt_bottom_sheet_chevron" />
+
+            <Button
+                android:id="@+id/button"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="@string/label_startstop_btn_start" />
         </RelativeLayout>
 
         <!-- Inference time row -->

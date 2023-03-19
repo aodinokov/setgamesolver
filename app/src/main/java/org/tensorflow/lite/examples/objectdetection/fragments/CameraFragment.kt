@@ -189,6 +189,21 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
                     /* no op */
                 }
             }
+
+        fragmentCameraBinding.bottomSheetLayout.button.setOnClickListener {
+            /* update button*/
+            objectDetectorHelper.scanEnabled = !objectDetectorHelper.scanEnabled
+
+            if (!objectDetectorHelper.scanEnabled) {
+                fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
+                    "0 ms"
+                // Force a redraw
+                fragmentCameraBinding.overlay.setResults(
+                    LinkedList<Detection>(), 1,1)
+                fragmentCameraBinding.overlay.invalidate()
+            }
+            updateControlsUi()
+        }
     }
 
     // Update the values displayed in the bottom sheet. Reset detector.
@@ -199,6 +214,14 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             String.format("%.2f", objectDetectorHelper.threshold)
         fragmentCameraBinding.bottomSheetLayout.threadsValue.text =
             objectDetectorHelper.numThreads.toString()
+
+        if (objectDetectorHelper.scanEnabled) {
+            fragmentCameraBinding.bottomSheetLayout.button.text =
+                getString(R.string.label_startstop_btn_stop)
+        } else {
+            fragmentCameraBinding.bottomSheetLayout.button.text =
+                getString(R.string.label_startstop_btn_start)
+        }
 
         // Needs to be cleared instead of reinitialized because the GPU
         // delegate needs to be initialized on the thread using it when applicable
@@ -296,12 +319,18 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
     // Update UI after objects have been detected. Extracts original image height/width
     // to scale and place bounding boxes properly through OverlayView
-    override fun onResults(
+    override fun onRawResults(
       results: MutableList<Detection>?,
       inferenceTime: Long,
       imageHeight: Int,
       imageWidth: Int
     ) {
+        // TODO: BUG: sometimes there is still race-condition and result is drawn after it was reset
+        // on button click
+        if(!objectDetectorHelper.scanEnabled) {
+            return
+        }
+
         activity?.runOnUiThread {
             fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
                             String.format("%d ms", inferenceTime)
@@ -316,6 +345,15 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             // Force a redraw
             fragmentCameraBinding.overlay.invalidate()
         }
+    }
+
+    override fun onSolution(
+        results: MutableList<Detection>?,
+        inferenceTime: Long,
+        imageHeight: Int,
+        imageWidth: Int
+    ) {
+        /* nothing to be done*/
     }
 
     override fun onError(error: String) {

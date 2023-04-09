@@ -59,6 +59,14 @@ class TFObjectDetectionTest {
                             // no op
                         }
 
+                        override fun onSolution(
+                            results: MutableList<Detection>?,
+                            inferenceTime: Long,
+                            imageHeight: Int,
+                            imageWidth: Int
+                        ) {
+                        }
+
                         override fun onRawResults(
                           results: MutableList<Detection>?,
                           inferenceTime: Long,
@@ -107,7 +115,13 @@ class TFObjectDetectionTest {
                 objectDetectorListener =
                     object : ObjectDetectorHelper.DetectorListener {
                         override fun onError(error: String) {}
-
+                        override fun onSolution(
+                            results: MutableList<Detection>?,
+                            inferenceTime: Long,
+                            imageHeight: Int,
+                            imageWidth: Int
+                        ) {
+                        }
                         override fun onRawResults(
                           results: MutableList<Detection>?,
                           inferenceTime: Long,

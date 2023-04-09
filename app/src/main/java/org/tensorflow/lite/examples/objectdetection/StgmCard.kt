@@ -1,7 +1,5 @@
 package org.tensorflow.lite.examples.objectdetection
 
-import java.util.EmptyStackException
-
 fun countFromString(input: String): Int? {
     if (input == "1")
         return 1
@@ -67,24 +65,15 @@ data class Card(val count: Int, var color: Color, var fill: Fill, var shape: Sha
 data class Solution(var cards: Set<Card>)
 
 fun cardFromString(input: String): Card? {
-    var parts = input.split("-", ignoreCase=true, limit = 4)
+    val parts = input.split("-", ignoreCase=true, limit = 4)
     if (parts.size != 4) {
         return null
     }
-
-    var count = countFromString(parts.elementAt(0))
-    if (count == null)
-        return null
-
-    var color = colorFromString(parts.elementAt(1))
-    if (color == null)
-        return null
-
-    var fill = fillFromString(parts.elementAt(2))
-    if (fill == null)
-        return null
-
-    return Card(count, color, Fill.EMPTY, Shape.DIAMOND)
+    val count: Int = countFromString(parts.elementAt(0)) ?: return null
+    val color: Color = colorFromString(parts.elementAt(1)) ?: return null
+    val fill: Fill = fillFromString(parts.elementAt(2)) ?: return null
+    val shape: Shape = shapeFromString(parts.elementAt(3)) ?: return null
+    return Card(count, color, fill, shape)
 }
 
 /**
@@ -123,31 +112,30 @@ fun findAllSolutions(input: Set<Card>): Set<Solution> {
  *  This function tries to find a combination of sets with maximum number of sets.
  *  If there are several such combinations - it returns all (that's why it returns the list)
  */
-fun findAllNonOverlappingSulutions(input: Set<Solution>): List<Set<Solution>> {
+fun findAllNonOverlappingSolutions(input: Set<Solution>): List<Set<Solution>> {
     for (i in 0..(input.size-1)) {
         for (j in i+1 .. (input.size-1)) {
             if (areSolutionsOverlap(input.elementAt(i), input.elementAt(j))) {
                 // build 2 subsets and check them separately
-                var res1: List<Set<Solution>> =
-                    findAllNonOverlappingSulutions(input.minus(input.elementAt(j)))
-                var res2: List<Set<Solution>> =
-                    findAllNonOverlappingSulutions(input.minus(input.elementAt(i)))
+                val res1: List<Set<Solution>> =
+                    findAllNonOverlappingSolutions(input.minus(input.elementAt(j)))
+                val res2: List<Set<Solution>> =
+                    findAllNonOverlappingSolutions(input.minus(input.elementAt(i)))
 
                 // we assume that result has at least 1 element. This must be always true
                 assert(res1.isNotEmpty())
                 assert(res2.isNotEmpty())
 
                 if (res1.elementAt(0).size == res2.elementAt(0).size) {
-                    // we have got a same number of sets in both cases - they are all interchangable
+                    // we have got a same number of sets in both cases, they are all interchangeable
                     // we can merge those solutions and choose any of them
                     return res1 + res2
                 }
                 if (res1.elementAt(0).size > res2.elementAt(0).size) {
                     // the solutions in res1 have more sets
                     return res1
-                } else {
-                    return res2
                 }
+                return res2
             }
         }
     }

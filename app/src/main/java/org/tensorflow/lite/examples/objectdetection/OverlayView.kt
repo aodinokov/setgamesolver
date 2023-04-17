@@ -28,10 +28,135 @@ import androidx.core.content.ContextCompat
 import java.util.LinkedList
 import kotlin.math.max
 import org.tensorflow.lite.task.vision.detector.Detection
+import kotlin.math.absoluteValue
+
+open class DetectedCard(name: String, bounds: RectF) {
+    public var detectedName = name
+    public var bounds = bounds
+}
+
+class ViewCard(name: String, bounds: RectF): DetectedCard(name, bounds) {
+    public var overriddenName: String? = null
+
+    // groups defines the color it will be shown
+    public var groups = HashSet<Int>()
+
+    fun name(): String{
+        if (overriddenName != null)
+            return overriddenName.toString()
+        return detectedName
+    }
+
+    fun updateAttmept(newDetectedName: String, newBounds: RectF): Boolean {
+        // check if new bounds are in intersect with the arg
+        if ((bounds.centerX() - newBounds.centerX()).absoluteValue < bounds.width()/2 &&
+            (bounds.centerY() - newBounds.centerY()).absoluteValue < bounds.height()/2) {
+
+                detectedName = newDetectedName
+                bounds = newBounds
+                return true
+        }
+        return false
+    }
+}
+
+class ViewData() {
+    private var nonOverlappingSolutionMode = false
+    public var cards = LinkedList<ViewCard>()
+    public var resultingGroupsCount = 0
+
+    fun reset() {
+        // clean the list
+        cards = LinkedList<ViewCard>()
+    }
+    fun setNonOverlappingSolutionMode(mode: Boolean) {
+        nonOverlappingSolutionMode = mode
+        //recalc groups
+        findSets()
+    }
+    fun updateList(newList: List<DetectedCard>) {
+        // try to track the same cards
+        var prevCards = cards
+        cards = LinkedList<ViewCard>()
+
+        outer@for (newCard in newList) {
+            for (card in prevCards) {
+                if (card.updateAttmept(newCard.detectedName, newCard.bounds)) {
+                    prevCards.remove(card)
+                    cards.add(card)
+                    break@outer
+                }
+            }
+            //new card didn't find any matching card - add a new one
+            cards.add(ViewCard(newCard.detectedName, newCard.bounds))
+        }
+    }
+    fun findSets(): Boolean {
+        var vCardsByName = HashMap<Card,ViewCard>()
+        var inSet = HashSet<Card>()
+        // store all cards to set
+        for (vCard in cards) {
+            var card = cardFromString(vCard.name())
+            if (card == null)
+                return false
+
+            inSet.add(card)
+            vCardsByName.put(card, vCard)
+        }
+
+        var solutions = findAllSolutions(inSet)
+
+        // clean groups
+        for (vCard in cards) {
+            vCard.groups.clear()
+        }
+
+        // mode 1
+        if (!nonOverlappingSolutionMode) {
+            // TODO: how to keep the same group from scan to scan?
+            var groupId = 0
+            for (g in solutions) {
+                for (c in g.cards) {
+                    //find corresponding vCard
+                    var vCard = vCardsByName.get(c)
+                    assert(vCard != null)
+                    if (vCard != null) {
+                        vCard.groups.add(groupId)
+                    }
+                }
+                // next id
+                groupId++
+            }
+            resultingGroupsCount = groupId
+            return true
+        }
+        // mode 2
+        var groupId = 0
+        for (ss in findAllNonOverlappingSolutions(solutions)) {
+            // for each solutionset
+            for (s in ss) {
+                for (c in s.cards) {
+                    //find corresponding vCard
+                    var vCard = vCardsByName.get(c)
+                    assert(vCard != null)
+                    if (vCard != null) {
+                        vCard.groups.add(groupId)
+                    }
+                }
+            }
+            // next id
+            groupId++
+        }
+        resultingGroupsCount = groupId
+        return true
+    }
+}
 
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
+    // TODO: switch newResults when ready
     private var results: List<Detection> = LinkedList<Detection>()
+    private var newResults: ViewData = ViewData()
     private var boxPaint = Paint()
     private var textBackgroundPaint = Paint()
     private var textPaint = Paint()

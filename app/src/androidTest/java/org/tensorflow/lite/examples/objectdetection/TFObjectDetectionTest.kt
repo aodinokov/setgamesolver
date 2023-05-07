@@ -50,28 +50,21 @@ class TFObjectDetectionTest {
     @Test
     @Throws(Exception::class)
     fun detectionResultsShouldNotChange() {
-        val objectDetectorHelper =
-            ObjectDetectorHelper(
+        val setgameDetectorHelper =
+            SetgameDetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
+                scanEnabled = true,
                 objectDetectorListener =
-                    object : ObjectDetectorHelper.DetectorListener {
+                    object : SetgameDetectorHelper.DetectorListener {
                         override fun onError(error: String) {
                             // no op
                         }
 
-                        override fun onSolution(
-                            results: MutableList<Detection>?,
+                        override fun onResults(
+                            results: MutableList<Detected>?,
                             inferenceTime: Long,
                             imageHeight: Int,
                             imageWidth: Int
-                        ) {
-                        }
-
-                        override fun onRawResults(
-                          results: MutableList<Detection>?,
-                          inferenceTime: Long,
-                          imageHeight: Int,
-                          imageWidth: Int
                         ) {
 
                             assertEquals(controlResults.size, results!!.size)
@@ -79,21 +72,21 @@ class TFObjectDetectionTest {
                             // Loop through the detected and control data
                             for (i in controlResults.indices) {
                                 // Verify that the bounding boxes are the same
-                                assertEquals(results[i].boundingBox, controlResults[i].boundingBox)
+                                assertEquals(results[i].getBoundingBox(), controlResults[i].getBoundingBox())
 
                                 // Verify that the detected data and control
                                 // data have the same number of categories
                                 assertEquals(
-                                    results[i].categories.size,
-                                    controlResults[i].categories.size
+                                    results[i].getCategories().size,
+                                    controlResults[i].getCategories().size
                                 )
 
                                 // Loop through the categories
                                 for (j in 0 until controlResults[i].categories.size - 1) {
                                     // Verify that the labels are consistent
                                     assertEquals(
-                                        results[i].categories[j].label,
-                                        controlResults[i].categories[j].label
+                                        results[i].getCategories()[j].label,
+                                        controlResults[i].getCategories()[j].label
                                     )
                                 }
                             }
@@ -103,37 +96,31 @@ class TFObjectDetectionTest {
         // Create Bitmap and convert to TensorImage
         val bitmap = loadImage("cat1.png")
         // Run the object detector on the sample image
-        objectDetectorHelper.detect(bitmap!!, 0)
+        setgameDetectorHelper.detect(bitmap!!, 0)
     }
 
     @Test
     @Throws(Exception::class)
     fun detectedImageIsScaledWithinModelDimens() {
-        val objectDetectorHelper =
-            ObjectDetectorHelper(
+        val setgameDetectorHelper =
+            SetgameDetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
+                scanEnabled = true,
                 objectDetectorListener =
-                    object : ObjectDetectorHelper.DetectorListener {
+                    object : SetgameDetectorHelper.DetectorListener {
                         override fun onError(error: String) {}
-                        override fun onSolution(
-                            results: MutableList<Detection>?,
+                        override fun onResults(
+                            results: MutableList<Detected>?,
                             inferenceTime: Long,
                             imageHeight: Int,
                             imageWidth: Int
                         ) {
-                        }
-                        override fun onRawResults(
-                          results: MutableList<Detection>?,
-                          inferenceTime: Long,
-                          imageHeight: Int,
-                          imageWidth: Int
-                        ) {
                             assertNotNull(results)
                             for (result in results!!) {
-                                assertTrue(result.boundingBox.top <= imageHeight)
-                                assertTrue(result.boundingBox.bottom <= imageHeight)
-                                assertTrue(result.boundingBox.left <= imageWidth)
-                                assertTrue(result.boundingBox.right <= imageWidth)
+                                assertTrue(result.getBoundingBox().top <= imageHeight)
+                                assertTrue(result.getBoundingBox().bottom <= imageHeight)
+                                assertTrue(result.getBoundingBox().left <= imageWidth)
+                                assertTrue(result.getBoundingBox().right <= imageWidth)
                             }
                         }
                     }
@@ -142,7 +129,7 @@ class TFObjectDetectionTest {
             // Create Bitmap and convert to TensorImage
             val bitmap = loadImage("cat1.png")
             // Run the object detector on the sample image
-            objectDetectorHelper.detect(bitmap!!, 0)
+            setgameDetectorHelper.detect(bitmap!!, 0)
     }
 
     @Throws(Exception::class)

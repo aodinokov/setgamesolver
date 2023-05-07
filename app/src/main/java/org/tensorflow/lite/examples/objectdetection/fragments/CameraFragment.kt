@@ -36,15 +36,16 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
+import org.tensorflow.lite.examples.objectdetection.Detected
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper
+import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
 import org.tensorflow.lite.task.vision.detector.Detection
 
-class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
+class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
     private val TAG = "ObjectDetection"
 
@@ -53,7 +54,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
 
-    private lateinit var objectDetectorHelper: ObjectDetectorHelper
+    private lateinit var setgameDetectorHelper: SetgameDetectorHelper
     private lateinit var bitmapBuffer: Bitmap
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
@@ -95,7 +96,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        objectDetectorHelper = ObjectDetectorHelper(
+        setgameDetectorHelper = SetgameDetectorHelper(
             context = requireContext(),
             objectDetectorListener = this)
 
@@ -115,48 +116,48 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     private fun initBottomSheetControls() {
         // When clicked, lower detection score threshold floor
         fragmentCameraBinding.bottomSheetLayout.thresholdMinus.setOnClickListener {
-            if (objectDetectorHelper.threshold >= 0.1) {
-                objectDetectorHelper.threshold -= 0.1f
+            if (setgameDetectorHelper.threshold >= 0.1) {
+                setgameDetectorHelper.threshold -= 0.1f
                 updateControlsUi()
             }
         }
 
         // When clicked, raise detection score threshold floor
         fragmentCameraBinding.bottomSheetLayout.thresholdPlus.setOnClickListener {
-            if (objectDetectorHelper.threshold <= 0.8) {
-                objectDetectorHelper.threshold += 0.1f
+            if (setgameDetectorHelper.threshold <= 0.8) {
+                setgameDetectorHelper.threshold += 0.1f
                 updateControlsUi()
             }
         }
 
         // When clicked, reduce the number of objects that can be detected at a time
         fragmentCameraBinding.bottomSheetLayout.maxResultsMinus.setOnClickListener {
-            if (objectDetectorHelper.maxResults > 1) {
-                objectDetectorHelper.maxResults--
+            if (setgameDetectorHelper.maxResults > 1) {
+                setgameDetectorHelper.maxResults--
                 updateControlsUi()
             }
         }
 
         // When clicked, increase the number of objects that can be detected at a time
         fragmentCameraBinding.bottomSheetLayout.maxResultsPlus.setOnClickListener {
-            if (objectDetectorHelper.maxResults < 12) {
-                objectDetectorHelper.maxResults++
+            if (setgameDetectorHelper.maxResults < 32) {
+                setgameDetectorHelper.maxResults++
                 updateControlsUi()
             }
         }
 
         // When clicked, decrease the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsMinus.setOnClickListener {
-            if (objectDetectorHelper.numThreads > 1) {
-                objectDetectorHelper.numThreads--
+            if (setgameDetectorHelper.numThreads > 1) {
+                setgameDetectorHelper.numThreads--
                 updateControlsUi()
             }
         }
 
         // When clicked, increase the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsPlus.setOnClickListener {
-            if (objectDetectorHelper.numThreads < 4) {
-                objectDetectorHelper.numThreads++
+            if (setgameDetectorHelper.numThreads < 4) {
+                setgameDetectorHelper.numThreads++
                 updateControlsUi()
             }
         }
@@ -167,7 +168,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                    objectDetectorHelper.currentDelegate = p2
+                    setgameDetectorHelper.currentDelegate = p2
                     updateControlsUi()
                 }
 
@@ -181,7 +182,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.spinnerModel.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                    objectDetectorHelper.currentModel = p2
+                    setgameDetectorHelper.currentModel = p2
                     updateControlsUi()
                 }
 
@@ -192,15 +193,11 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
         fragmentCameraBinding.bottomSheetLayout.button.setOnClickListener {
             /* update button*/
-            objectDetectorHelper.scanEnabled = !objectDetectorHelper.scanEnabled
+            setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
 
-            if (!objectDetectorHelper.scanEnabled) {
+            if (!setgameDetectorHelper.scanEnabled) {
                 fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
-                    "0 ms"
-                // Force a redraw
-                fragmentCameraBinding.overlay.setResults(
-                    LinkedList<Detection>(), 1,1)
-                fragmentCameraBinding.overlay.invalidate()
+                    "n/a"
             }
             updateControlsUi()
         }
@@ -209,13 +206,13 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
     // Update the values displayed in the bottom sheet. Reset detector.
     private fun updateControlsUi() {
         fragmentCameraBinding.bottomSheetLayout.maxResultsValue.text =
-            objectDetectorHelper.maxResults.toString()
+            setgameDetectorHelper.maxResults.toString()
         fragmentCameraBinding.bottomSheetLayout.thresholdValue.text =
-            String.format("%.2f", objectDetectorHelper.threshold)
+            String.format("%.2f", setgameDetectorHelper.threshold)
         fragmentCameraBinding.bottomSheetLayout.threadsValue.text =
-            objectDetectorHelper.numThreads.toString()
+            setgameDetectorHelper.numThreads.toString()
 
-        if (objectDetectorHelper.scanEnabled) {
+        if (setgameDetectorHelper.scanEnabled) {
             fragmentCameraBinding.bottomSheetLayout.button.text =
                 getString(R.string.label_startstop_btn_stop)
         } else {
@@ -225,8 +222,8 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
         // Needs to be cleared instead of reinitialized because the GPU
         // delegate needs to be initialized on the thread using it when applicable
-        objectDetectorHelper.clearObjectDetector()
-        fragmentCameraBinding.overlay.clear()
+        setgameDetectorHelper.clearObjectDetector()
+        fragmentCameraBinding.overlay.clear(setgameDetectorHelper.scanEnabled)
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -309,7 +306,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
         val imageRotation = image.imageInfo.rotationDegrees
         // Pass Bitmap and rotation to the object detector helper for processing and detection
-        objectDetectorHelper.detect(bitmapBuffer, imageRotation)
+        setgameDetectorHelper.detect(bitmapBuffer, imageRotation)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -319,15 +316,14 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
     // Update UI after objects have been detected. Extracts original image height/width
     // to scale and place bounding boxes properly through OverlayView
-    override fun onRawResults(
-      results: MutableList<Detection>?,
-      inferenceTime: Long,
-      imageHeight: Int,
-      imageWidth: Int
+    override fun onResults(
+        results: MutableList<Detected>?,
+        inferenceTime: Long,
+        imageHeight: Int,
+        imageWidth: Int
     ) {
-        // TODO: BUG: sometimes there is still race-condition and result is drawn after it was reset
-        // on button click
-        if(!objectDetectorHelper.scanEnabled) {
+        // if button is enabled
+        if(!setgameDetectorHelper.scanEnabled) {
             return
         }
 
@@ -337,7 +333,7 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
 
             // Pass necessary information to OverlayView for drawing on the canvas
             fragmentCameraBinding.overlay.setResults(
-                results ?: LinkedList<Detection>(),
+                results ?: LinkedList<Detected>(),
                 imageHeight,
                 imageWidth
             )
@@ -345,15 +341,6 @@ class CameraFragment : Fragment(), ObjectDetectorHelper.DetectorListener {
             // Force a redraw
             fragmentCameraBinding.overlay.invalidate()
         }
-    }
-
-    override fun onSolution(
-        results: MutableList<Detection>?,
-        inferenceTime: Long,
-        imageHeight: Int,
-        imageWidth: Int
-    ) {
-        /* nothing to be done*/
     }
 
     override fun onError(error: String) {

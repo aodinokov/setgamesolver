@@ -81,7 +81,7 @@ fun cardFromString(input: String): Card? {
  * based on the rules of the game
  */
 fun findAllSolutions(input: Set<Card>): Set<Solution> {
-    val result: Set<Solution> = emptySet()
+    val result = HashSet<Solution>()
     for(i in 0..(input.size-1)) {
         val c0 = input.elementAt(i)
         for (j in i+1 .. (input.size-1)) {
@@ -99,7 +99,7 @@ fun findAllSolutions(input: Set<Card>): Set<Solution> {
                         fill%3 == 0 &&
                         shape%3 == 0) {
                     val solution = Solution(cards = setOf(c0, c1, c2))
-                    result.plus(solution)
+                    result.add(solution)
                 }
             }
         }

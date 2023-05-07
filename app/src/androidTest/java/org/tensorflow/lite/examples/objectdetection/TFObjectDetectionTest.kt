@@ -132,6 +132,34 @@ class TFObjectDetectionTest {
             setgameDetectorHelper.detect(bitmap!!, 0)
     }
 
+    @Test
+    @Throws(Exception::class)
+    fun someResultsForSetgame_test1() {
+        val setgameDetectorHelper =
+                SetgameDetectorHelper(
+                        context = InstrumentationRegistry.getInstrumentation().context,
+                        scanEnabled = true,
+                        currentModel = SetgameDetectorHelper.MODEL_SETGAME,
+                        objectDetectorListener =
+                        object : SetgameDetectorHelper.DetectorListener {
+                            override fun onError(error: String) {}
+                            override fun onResults(
+                                    results: MutableList<Detected>?,
+                                    inferenceTime: Long,
+                                    imageHeight: Int,
+                                    imageWidth: Int
+                            ) {
+                                assertNotNull(results)
+                            }
+                        }
+                )
+
+        // Create Bitmap and convert to TensorImage
+        val bitmap = loadImage("setgame_set1.jpg")
+        // Run the object detector on the sample image
+        setgameDetectorHelper.detect(bitmap!!, 0)
+    }
+
     @Throws(Exception::class)
     private fun loadImage(fileName: String): Bitmap? {
         val assetManager: AssetManager =

@@ -54,10 +54,11 @@ abstract class Grouppable: Detected() {
 }
 
 
-class ViewCard(name: String, bounds: RectF):  Grouppable(){
+class ViewCard(var x: Detected):  Grouppable(){
     public var overriddenName: String? = null
-    public var detectedName = name
-    public var bounds = bounds
+    public var detectedName = x.getCategories()[0].label
+    public var bounds = x.getBoundingBox()
+    var cats = x.getCategories()?: LinkedList<Category>()
 
     // groups defines the color it will be shown
     public var groups = HashSet<Int>()
@@ -68,7 +69,9 @@ class ViewCard(name: String, bounds: RectF):  Grouppable(){
         return detectedName
     }
 
-    fun updateAttmept(newDetectedName: String, newBounds: RectF): Boolean {
+    fun updateAttmept(x: Detected): Boolean {
+        val newDetectedName = x.getCategories()[0].label
+        val newBounds = x.getBoundingBox()
         // check if new bounds are in intersect with the arg
         if ((bounds.centerX() - newBounds.centerX()).absoluteValue < bounds.width()/2 &&
             (bounds.centerY() - newBounds.centerY()).absoluteValue < bounds.height()/2) {
@@ -91,7 +94,7 @@ class ViewCard(name: String, bounds: RectF):  Grouppable(){
     }
 
     override fun getCategories(): MutableList<Category> {
-        return LinkedList<Category>()
+        return cats
     }
 }
 
@@ -254,14 +257,14 @@ class SetgameDetectorHelper(
 
         outer@for (newCard in results) {
             for (card in prevCards) {
-                if (card.updateAttmept(newCard.getCategories()[0].label, newCard.getBoundingBox())) {
+                if (card.updateAttmept(newCard)) {
                     prevCards.remove(card)
                     cards.add(card)
-                    break@outer
+                    continue@outer
                 }
             }
             //new card didn't find any matching card - add a new one
-            cards.add(ViewCard(newCard.getCategories()[0].label, newCard.getBoundingBox()))
+            cards.add(ViewCard(newCard))
         }
     }
     fun findSets(): Boolean {

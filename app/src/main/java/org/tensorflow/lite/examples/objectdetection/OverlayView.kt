@@ -72,7 +72,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
         groupBoxPaintMap.clear()
         val colors: TypedArray = resources.obtainTypedArray(R.array.groupColors)
-        for (i in 0 until colors.indexCount) {
+        for (i in 0 until colors.length()) {
             var p = Paint()
             p.color = colors.getColor(i, 0)
             p.strokeWidth = boxPaint.strokeWidth
@@ -99,11 +99,14 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
             val drawableRect = RectF(left, top, right, bottom)
             if (result is Grouppable) {
                 for(groupId in result.getGroupIds()) {
-                    assert(groupId < groupBoxPaintMap.size)
-                    canvas.drawRect(drawableRect, groupBoxPaintMap.get(groupId)!!)
+                    assert(groupBoxPaintMap.size > 0)
+                    val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
+                    canvas.drawRect(drawableRect, pb)
                     // make all groups visible
-                    drawableRect.left++
-                    drawableRect.bottom++
+                    drawableRect.left -= pb.strokeWidth
+                    drawableRect.top -= pb.strokeWidth
+                    drawableRect.bottom += pb.strokeWidth
+                    drawableRect.right += pb.strokeWidth
                 }
             }else{
                 canvas.drawRect(drawableRect, boxPaint)

@@ -54,6 +54,7 @@ class TFObjectDetectionTest {
             SetgameDetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
                 scanEnabled = true,
+                currentModel = SetgameDetectorHelper.MODEL_MOBILENETV1,
                 objectDetectorListener =
                     object : SetgameDetectorHelper.DetectorListener {
                         override fun onError(error: String) {
@@ -106,6 +107,7 @@ class TFObjectDetectionTest {
             SetgameDetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
                 scanEnabled = true,
+                currentModel = SetgameDetectorHelper.MODEL_MOBILENETV1,
                 objectDetectorListener =
                     object : SetgameDetectorHelper.DetectorListener {
                         override fun onError(error: String) {}

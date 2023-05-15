@@ -152,6 +152,15 @@ class TFObjectDetectionTest {
                                     imageWidth: Int
                             ) {
                                 assertNotNull(results)
+                                var total = 0
+                                if (results != null) {
+                                    for (c in results) {
+                                        if (c is Grouppable) {
+                                            total = total + c.getGroupIds().size
+                                        }
+                                    }
+                                }
+                                assert(total > 0)
                             }
                         }
                 )

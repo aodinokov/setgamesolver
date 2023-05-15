@@ -20,16 +20,21 @@ import android.graphics.Bitmap
 import android.graphics.RectF
 import android.os.SystemClock
 import android.util.Log
+import android.view.Surface
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.core.BaseOptions
+import org.tensorflow.lite.task.core.vision.ImageProcessingOptions
+import org.tensorflow.lite.task.vision.classifier.Classifications
+import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.util.*
 import kotlin.math.absoluteValue
+import kotlin.math.max
 
 /*WA: it was necessary to create our own copy, because we couldn't inherit from Detection */
 abstract class Detected() {
@@ -56,30 +61,64 @@ abstract class Grouppable: Detected() {
 
 class ViewCard(var x: Detected):  Grouppable(){
     public var overriddenName: String? = null
-    public var detectedName = x.getCategories()[0].label
+    //public var detectedName = x.getCategories()[0].label
+    public var classifiedName = ""
+    public var classifiedScore: Float = 0.0F
+
     public var bounds = x.getBoundingBox()
-    var cats = x.getCategories()?: LinkedList<Category>()
+    public var prevBounds: RectF? = null
+
+    // keep what came from Detected
+    public var cats = x.getCategories()?: LinkedList<Category>()
 
     // groups defines the color it will be shown
     public var groups = HashSet<Int>()
 
+    // timers
+    public var detectedTime = SystemClock.uptimeMillis()
+    public var classifiedTime = SystemClock.uptimeMillis()
+
     fun name(): String{
         if (overriddenName != null)
             return overriddenName.toString()
-        return detectedName
+        return classifiedName
     }
 
-    fun updateAttmept(x: Detected): Boolean {
-        val newDetectedName = x.getCategories()[0].label
+    fun isWithinBorders(x: Detected): Boolean {
         val newBounds = x.getBoundingBox()
         // check if new bounds are in intersect with the arg
         if ((bounds.centerX() - newBounds.centerX()).absoluteValue < bounds.width()/2 &&
             (bounds.centerY() - newBounds.centerY()).absoluteValue < bounds.height()/2) {
-
-            detectedName = newDetectedName
-            bounds = newBounds
             return true
         }
+        return false
+    }
+
+    fun updateBorders(x: Detected) {
+        prevBounds = bounds
+        bounds = x.getBoundingBox()
+    }
+
+    // Work with live time
+    fun markReDetected() {
+        detectedTime = SystemClock.uptimeMillis()
+    }
+
+    fun isOutdated():Boolean {
+        // if time when it was last time re-detected is more then const (e.g. 2sec)
+        return false
+    }
+
+    fun updateClassification(newName: String, newScore: Float) {
+        classifiedName = newName
+        classifiedScore = newScore
+        markReClassified()
+    }
+    fun markReClassified() {
+        classifiedTime = SystemClock.uptimeMillis()
+    }
+
+    fun isReClassifyCandidate(): Boolean {
         return false
     }
 
@@ -113,16 +152,19 @@ class SetgameDetectorHelper(
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
     // will not change, a lazy val would be preferable.
     private var objectDetector: ObjectDetector? = null
+    private var imageClassifier: ImageClassifier? = null
 
-    // we're keeping cards so the they can be overridden
+    // we're keeping cards so the they can be traced and overridden
     private var cards = LinkedList<ViewCard>()
 
     init {
         setupObjectDetector()
+        setupImageClassifier()
     }
 
     fun clearObjectDetector() {
         objectDetector = null
+        imageClassifier = null
     }
 
     fun clearCards() {
@@ -153,7 +195,7 @@ class SetgameDetectorHelper(
                 if (CompatibilityList().isDelegateSupportedOnThisDevice) {
                     baseOptionsBuilder.useGpu()
                 } else {
-                    objectDetectorListener?.onError("GPU is not supported on this device")
+                    objectDetectorListener?.onError("Detector creations: GPU is not supported on this device")
                 }
             }
             DELEGATE_NNAPI -> {
@@ -182,7 +224,84 @@ class SetgameDetectorHelper(
         }
     }
 
+    private fun setupImageClassifier() {
+        val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
+                .setScoreThreshold(0.1f/*threshold*/)
+                .setMaxResults(maxResults)
+
+        val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
+
+        when (currentDelegate) {
+            DELEGATE_CPU -> {
+                // Default
+            }
+            DELEGATE_GPU -> {
+                if (CompatibilityList().isDelegateSupportedOnThisDevice) {
+                    baseOptionsBuilder.useGpu()
+                } else {
+                    objectDetectorListener?.onError("Classifier creation: GPU is not supported on this device")
+                }
+            }
+            DELEGATE_NNAPI -> {
+                baseOptionsBuilder.useNnapi()
+            }
+        }
+
+        optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
+
+        val modelName =
+                when (currentModel) {
+                    MODEL_SETGAME -> "setgame-classify.tflite"
+                    else -> "setgame-classify.tflite"
+                }
+
+        try {
+            imageClassifier =
+                    ImageClassifier.createFromFileAndOptions(context, modelName, optionsBuilder.build())
+        } catch (e: IllegalStateException) {
+            objectDetectorListener?.onError(
+                    "Classifier creation:Image classifier failed to initialize. See error logs for details"
+            )
+            Log.e("Test", "TFLite failed to load model with error: " + e.message)
+        }
+    }
+
+    // Receive the device rotation (Surface.x values range from 0->3) and return EXIF orientation
+    // http://jpegclub.org/exif_orientation.html
+    private fun getOrientationFromRotation(rotation: Int) : ImageProcessingOptions.Orientation {
+        when (rotation) {
+            Surface.ROTATION_270 ->
+                return ImageProcessingOptions.Orientation.BOTTOM_RIGHT
+            Surface.ROTATION_180 ->
+                return ImageProcessingOptions.Orientation.RIGHT_BOTTOM
+            Surface.ROTATION_90 ->
+                return ImageProcessingOptions.Orientation.TOP_LEFT
+            else ->
+                return ImageProcessingOptions.Orientation.RIGHT_TOP
+        }
+    }
+    fun classifyImage(image: Bitmap, rotation: Int): List<Classifications>? {
+        if (imageClassifier == null) {
+            setupImageClassifier()
+        }
+        // Create preprocessor for the image.
+        // See https://www.tensorflow.org/lite/inference_with_metadata/
+        //            lite_support#imageprocessor_architecture
+        val imageProcessor =
+                ImageProcessor.Builder()
+                        .build()
+
+        // Preprocess the image and convert it into a TensorImage for classification.
+        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+
+        val imageProcessingOptions = ImageProcessingOptions.builder()
+                .setOrientation(getOrientationFromRotation(rotation))
+                .build()
+
+        return imageClassifier?.classify(tensorImage, imageProcessingOptions)
+    }
     fun detect(image: Bitmap, imageRotation: Int) {
+        // ensure all tools are ready
         if (objectDetector == null) {
             setupObjectDetector()
         }
@@ -199,13 +318,14 @@ class SetgameDetectorHelper(
         //            lite_support#imageprocessor_architecture
         val imageProcessor =
             ImageProcessor.Builder()
-                .add(Rot90Op(-imageRotation / 90))
+                //.add(Rot90Op(-imageRotation / 90))
                 .build()
 
         // Preprocess the image and convert it into a TensorImage for detection.
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+        val scaleFactor = max(image.width * 1f / tensorImage.width,  image.height * 1f / tensorImage.height)
 
-        val results = setgameResults(image, imageRotation, objectDetector?.detect(tensorImage))
+        val results = setgameResults(image, imageRotation, scaleFactor, objectDetector?.detect(tensorImage))
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
         objectDetectorListener?.onResults(
             results,
@@ -218,6 +338,7 @@ class SetgameDetectorHelper(
     fun setgameResults(
         image: Bitmap,
         imageRotation: Int,
+        scaleFactor: Float,
         results: MutableList<Detection>?): MutableList<Detected> {
         var res = LinkedList<Detected>()
         if (results != null) {
@@ -228,42 +349,108 @@ class SetgameDetectorHelper(
         if (currentModel != MODEL_SETGAME || results == null)
             return res
 
-        // more complex calculations are needed for setgame
-        // TBD: here we need to add some heuristic to validate what exactly
-        // cards are located by detector - this can be done with
-        // image and imageRotation
+        // below starts the SETGAME specific code
+        updateWithNewDetections(image, imageRotation, scaleFactor, res)
+        res.clear() // re-use the list to send results back
 
-        // ...
+        // find sets and mark them as groups
+        findSets()
 
-        // res must contain ALL found cards on the Bitmap
-        updateList(res)
-        res.clear()
-        if (findSets() != true)
-            return res
-
-        for (r in cards) {
-            res.add(r)
-        }
-
+        // copy our cards to the resulting list
+        for (r in cards) res.add(r)
         return res
     }
 
-    fun updateList(results: MutableList<Detected>) {
-        // try to track the same cards
-        var prevCards = cards
-        cards = LinkedList<ViewCard>()
+    fun updateWithNewDetections(
+            image: Bitmap,
+            imageRotation: Int,
+            scaleFactor: Float,
+            results: MutableList<Detected>) {
+        var reDetectedCards = LinkedList<ViewCard>()
+        var newDet = LinkedList<Detected>()
+        var newCards = LinkedList<ViewCard>()
 
-        outer@for (newCard in results) {
-            for (card in prevCards) {
-                if (card.updateAttmept(newCard)) {
-                    prevCards.remove(card)
-                    cards.add(card)
+        outer@for (det in results) {
+            for (card in cards) {
+                if (card.isWithinBorders(det)) {
+                    // move to the re-detected list
+                    cards.remove(card)
+                    reDetectedCards.add(card)
+
+                    // mark as re-detected
+                    card.markReDetected()
+                    // update new borders
+                    card.updateBorders(det)
+
                     continue@outer
                 }
             }
-            //new card didn't find any matching card - add a new one
-            cards.add(ViewCard(newCard))
+            // new card didn't find any matching card - add a new one
+            newDet.add(det)
         }
+
+        // try to reClassify redetectedCards if they're timed out
+        // limit this to 5 cards at a time - we'll update them next detection period
+        var reclassifiedCounter = 0
+        for (card in reDetectedCards) {
+            if (!card.isReClassifyCandidate())
+                continue
+            var border = card.getBoundingBox()
+            var imageFrag = Bitmap.createBitmap(image,
+                    (border.left*scaleFactor).toInt(),
+                    (border.top*scaleFactor).toInt(),
+                    ((border.right - border.left)*scaleFactor).toInt(),
+                    ((border.bottom - border.top)*scaleFactor).toInt())
+            var classRotation = 0
+            if (imageFrag.width < imageFrag.height)
+                classRotation = 1
+            var res = classifyImage(imageFrag, classRotation)
+            res?.let { it ->
+                if (it.isNotEmpty()) {
+                    val sortedCategories = it[0].categories //.sortedBy { it?.score }
+                    card.updateClassification(
+                            sortedCategories[0].label,
+                            sortedCategories[0].score)
+                    newCards.add(card)
+                }
+            }
+            reclassifiedCounter++
+            if (reclassifiedCounter > 5)
+                break
+        }
+
+        // classify the newly appeared cards in newDet and add the to newCards
+        for (det in newDet) {
+            var border = det.getBoundingBox()
+            var imageFrag = Bitmap.createBitmap(image,
+                    (border.left*scaleFactor).toInt(),
+                    (border.top*scaleFactor).toInt(),
+                    ((border.right - border.left)*scaleFactor).toInt(),
+                    ((border.bottom - border.top)*scaleFactor).toInt())
+            var classRotation = 1
+            if (imageFrag.width < imageFrag.height)
+                classRotation = 0
+            var res = classifyImage(imageFrag, classRotation)
+            res?.let { it ->
+                if (it.isNotEmpty()) {
+                    val sortedCategories = it[0].categories//.sortedBy { it?.score }
+                    if (sortedCategories.size > 0) {
+                        var card = ViewCard(det)
+                        card.updateClassification(
+                                sortedCategories[0].label,
+                                sortedCategories[0].score)
+                        newCards.add(card)
+                    }
+                }
+            }
+        }
+        // TODO: cards contains the list non matching cards - we need to handle them
+        // try to identify their new position and redetect them and add to reDetectedCards
+
+        // update the internal list with all we found
+        //cards = reDetectedCards
+        //cards.addAll(newCards)
+        cards = newCards
     }
     fun findSets(): Boolean {
         var vCardsByName = HashMap<Card,ViewCard>()
@@ -271,11 +458,11 @@ class SetgameDetectorHelper(
         // store all cards to set
         for (vCard in cards) {
             var card = cardFromString(vCard.name())
-            if (card == null)
-                return false
-
-            inSet.add(card)
-            vCardsByName.put(card, vCard)
+            // add only classified cards
+            if (card != null) {
+                inSet.add(card)
+                vCardsByName.put(card, vCard)
+            }
         }
 
         var solutions = findAllSolutions(inSet)

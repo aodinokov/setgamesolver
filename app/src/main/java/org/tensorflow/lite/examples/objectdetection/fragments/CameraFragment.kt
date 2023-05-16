@@ -20,12 +20,13 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.Toast
-import androidx.camera.core.AspectRatio
+//import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -256,14 +257,16 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         // Preview. Only using the 4:3 ratio because this is the closest to our models
         preview =
             Preview.Builder()
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                .setTargetResolution(Size(1920, 1080))
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .build()
 
         // ImageAnalysis. Using RGBA 8888 to match how our models work
         imageAnalyzer =
             ImageAnalysis.Builder()
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                .setTargetResolution(Size(1920, 1080))
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(OUTPUT_IMAGE_FORMAT_RGBA_8888)

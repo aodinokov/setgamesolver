@@ -26,7 +26,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.Toast
-//import androidx.camera.core.AspectRatio
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -197,6 +197,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
 
             if (!setgameDetectorHelper.scanEnabled) {
+                setgameDetectorHelper.clearCards()
                 fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
                     "n/a"
             }
@@ -258,7 +259,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         preview =
             Preview.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setTargetResolution(Size(1920, 1080))
+                .setTargetResolution(Size(1024, 768))
+                    //.setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .build()
 
@@ -266,7 +268,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         imageAnalyzer =
             ImageAnalysis.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setTargetResolution(Size(1920, 1080))
+                .setTargetResolution(Size(1024, 768))
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(OUTPUT_IMAGE_FORMAT_RGBA_8888)

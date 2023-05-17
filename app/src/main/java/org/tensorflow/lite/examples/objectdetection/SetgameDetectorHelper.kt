@@ -33,8 +33,8 @@ import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.util.*
+import kotlin.collections.HashMap
 import kotlin.math.absoluteValue
-import kotlin.math.max
 
 /*WA: it was necessary to create our own copy, because we couldn't inherit from Detection */
 abstract class Detected() {
@@ -58,24 +58,37 @@ abstract class Grouppable: Detected() {
     abstract fun getGroupIds(): Set<Int>
 }
 
+data class BoundsTransformation(
+        var deltaX: Float,
+        var deltaY: Float,
+        var scaleX:Float,
+        var scaleY: Float)
+
+data class CategoryStat(
+        var scoreMax: Float
+//        var scaleSum: Float, // probabilites sum
+//        var scaleNum: Float  // number of times we added
+)
+
 class ViewCard(var x: Detected):  Grouppable(){
     public var overriddenName: String? = null
     //public var detectedName = x.getCategories()[0].label
     public var classifiedName = ""
     public var classifiedScore: Float = 0.0F
 
+    public var classificationStat = HashMap<String, CategoryStat>()
+
     public var bounds = x.getBoundingBox()
     public var prevBounds: RectF? = null
 
-    // keep what came from Detected
-    public var cats = x.getCategories()?: LinkedList<Category>()
+    // keep what came from Detected & classified and their timestamp
+    public var detectedTime = SystemClock.uptimeMillis()
+    public var detectedCategories = x.getCategories()?: LinkedList<Category>()
+    public var classifiedTime = SystemClock.uptimeMillis()
+    public var classifiedCategories: MutableList<Category> = LinkedList<Category>()
 
     // groups defines the color it will be shown
     public var groups = HashSet<Int>()
-
-    // timers
-    public var detectedTime = SystemClock.uptimeMillis()
-    public var classifiedTime = SystemClock.uptimeMillis()
 
     fun name(): String{
         if (overriddenName != null)
@@ -98,27 +111,103 @@ class ViewCard(var x: Detected):  Grouppable(){
         bounds = x.getBoundingBox()
     }
 
+    fun getBoundsTransformation(): BoundsTransformation? {
+        if (
+                prevBounds == null ||
+                prevBounds!!.width() == 0.0f ||
+                prevBounds!!.height() == 0.0f)
+            return null
+        return BoundsTransformation(
+               bounds.centerX() - prevBounds!!.centerX(),
+                bounds.centerY() - prevBounds!!.centerY(),
+                bounds.width()/prevBounds!!.width(),
+                bounds.height()/prevBounds!!.height()
+        )
+    }
+
+    fun applyBoundsTransformation(t: BoundsTransformation) {
+        prevBounds = bounds
+        val boundsTmp = RectF(
+                prevBounds!!.left + t.deltaX,
+                prevBounds!!.right + t.deltaX,
+                prevBounds!!.top + t.deltaY,
+                prevBounds!!.bottom + t.deltaY,
+        )
+        //now scale
+        bounds = RectF(
+                boundsTmp.centerX()-boundsTmp.width()*t.scaleX/2,
+                boundsTmp.centerX()+boundsTmp.width()*t.scaleX/2,
+                boundsTmp.centerY()-boundsTmp.height()*t.scaleX/2,
+                boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2,
+        )
+    }
+
     // Work with live time
-    fun markReDetected() {
+    fun markReDetected(x: Detected) {
+        updateBorders(x)
+        detectedCategories = x.getCategories()
         detectedTime = SystemClock.uptimeMillis()
     }
 
-    fun isOutdated():Boolean {
-        // if time when it was last time re-detected is more then const (e.g. 2sec)
-        return false
+    fun isDetectionOutdated():Boolean {
+        // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
+        return  SystemClock.uptimeMillis() - detectedTime < 2000 ||
+                SystemClock.uptimeMillis() - classifiedTime < 2000
     }
 
-    fun updateClassification(newName: String, newScore: Float) {
-        classifiedName = newName
-        classifiedScore = newScore
-        markReClassified()
-    }
-    fun markReClassified() {
+    fun updateClassification(newCategories: MutableList<Category>) {
+        classifiedCategories = newCategories
+
+        if (classifiedCategories.size > 0) {
+            // calculate this in this way for now
+            classifiedName = classifiedCategories[0].label
+            classifiedScore = classifiedCategories[0].score
+        }
+
+        // doesn't work yet
+//        var score = 0f
+//        for (cat in classifiedCategories) {
+//            val stat = classificationStat[cat.label]
+//            var curScore = 0f
+//            if (stat != null) {
+//                stat.scaleSum = cat.score
+//                stat.scaleNum = stat.scaleNum + 1
+//                curScore = stat.scaleSum/stat.scaleNum
+//            } else {
+//                classificationStat[cat.label] = CategoryStat(cat.score, 1.0f)
+//                curScore = cat.score
+//            }
+//            if (curScore > score) {
+//                classifiedName = cat.label
+//                classifiedScore = score
+//                score = curScore
+//            }
+//        }
+
+        var max = 0f
+        for (cat in classifiedCategories) {
+            var stat = classificationStat[cat.label]
+            var curScore = cat.score
+            if (stat != null) {
+                if (stat.scoreMax < cat.score) {
+                    stat.scoreMax = cat.score
+                }
+                curScore = stat.scoreMax
+            }else {
+                classificationStat[cat.label] = CategoryStat(cat.score)
+            }
+            if (max < curScore) {
+                max = curScore
+                classifiedName = cat.label
+                classifiedScore = curScore
+            }
+        }
+
         classifiedTime = SystemClock.uptimeMillis()
     }
 
     fun isReClassifyCandidate(): Boolean {
-        return false
+        return SystemClock.uptimeMillis() - detectedTime < 500
     }
 
     // Grouppable interface impl
@@ -132,7 +221,24 @@ class ViewCard(var x: Detected):  Grouppable(){
     }
 
     override fun getCategories(): MutableList<Category> {
-        return cats
+        if (classifiedCategories != null && classifiedCategories.size >0) {
+            //return classifiedCategories
+//            var res = LinkedList<Category>()
+//            for (cat in classificationStat.keys){
+//                res.add(Category(cat, classificationStat[cat]!!.scaleSum/classificationStat[cat]!!.scaleNum))
+//            }
+//            res.sortByDescending { it.score }
+//            return res
+
+            var res = LinkedList<Category>()
+            for (cat in classificationStat.keys){
+                res.add(Category(cat, classificationStat[cat]!!.scoreMax))
+            }
+            res.sortByDescending { it.score }
+            return res
+
+        }
+        return detectedCategories
     }
 }
 
@@ -179,10 +285,6 @@ class SetgameDetectorHelper(
 
     // we're keeping cards so the they can be traced and overridden
     private var cards = LinkedList<ViewCard>()
-
-    // Mutable buffers
-    private var buffer: Bitmap = Bitmap.createBitmap(1000, 1000, Bitmap.Config.ARGB_8888)
-    private var pixels = IntArray(1000 * 1000);
 
     init {
         setupObjectDetector()
@@ -327,6 +429,110 @@ class SetgameDetectorHelper(
 
         return imageClassifier?.classify(tensorImage, imageProcessingOptions)
     }
+
+    // Mutable buffers for fun classify
+    private var buffer: Bitmap = Bitmap.createBitmap(1000, 1000, Bitmap.Config.ARGB_8888)
+    private var pixels = IntArray(1000 * 1000);
+    fun classify(image: Bitmap, imageRotation: Int, border: RectF): List<Classifications>? {
+        var top = border.top.toInt()
+        var bottom = border.bottom.toInt()
+        var left = border.left.toInt()
+        var right = border.right.toInt()
+
+        // filter by picture size
+        if (right - left>= 1000 || bottom - top >= 1000)
+            return null
+
+//        // adjust rotation
+//        val orig_width = right - left
+//        val orig_height = bottom - top
+//        var classificationRotation = Surface.ROTATION_90
+//        if (orig_width < orig_height)
+//            classificationRotation = 0
+
+        // rotate within image
+        when (imageRotation/90) {
+            Surface.ROTATION_270 -> {
+                // need to test
+                val newLeft = image.width -top
+                val newRight = image.width -bottom
+                val newTop = right
+                val newBottom = left
+                top = newTop
+                bottom = newBottom
+                left = newLeft
+                right = newRight
+            }
+
+            Surface.ROTATION_180 -> {
+                val newLeft = image.width - right
+                val newRight = image.width - left
+                val newTop = image.height - bottom
+                val newBottom = image.height - top
+                top = newTop
+                bottom = newBottom
+                left = newLeft
+                right = newRight
+            }
+
+            Surface.ROTATION_90 -> {
+                val newLeft = top
+                val newRight = bottom
+                val newTop = image.height- right
+                val newBottom = image.height- left
+                top = newTop
+                bottom = newBottom
+                left = newLeft
+                right = newRight
+            }
+        }
+
+        // filter by bitmap limitaion (we could ajust them though)
+        // the initial rect somtimes may have negative left/top or
+        // too big right/bottom
+        if (left < 0) left = 0
+        if (right > image.width) right = image.width
+        if (top < 0 ) top = 0
+        if (bottom > image.height) bottom = image.height
+
+        // those are not changable
+        val width = right - left
+        val height = bottom - top
+
+        // we want them to be vertical (this is weird - I think to trained horizontal)
+        var classificationRotation = Surface.ROTATION_90
+        if (width < height)
+            classificationRotation = 0
+
+        if (width <= 0 || height <=0 )
+            return null
+
+
+        assert(left + width <= image.width &&
+                top + height <= image.height, {
+                "left+width:" + (left + width).toString() +
+                ", top+height" + (top + height).toString() +
+                ", image: " + image.width.toString() + "x" + image.height.toString() +
+                ", rot: " + imageRotation.toString() +
+                ", initial rect(ltrb): "+  border.left.toInt().toString()+ "x" + border.top.toInt().toString()+ "x" + border.right.toInt().toString()+ "x" + border.bottom.toInt().toString() +
+                ", left: " + left.toString()+
+                ", top: "+ top.toString()+
+                ", width: " + width.toString() +
+                ", heigth: " + height.toString()})
+
+        buffer.width = width
+        buffer.height = height
+        image.getPixels(pixels, 0,width,
+                left,
+                top,
+                width,
+                height)
+        buffer.setPixels(pixels, 0,width,0,0,
+                width,
+                height)
+
+        return classifyImage(buffer, classificationRotation)
+    }
     fun detect(image: Bitmap, imageRotation: Int) {
         // ensure all tools are ready
         if (objectDetector == null) {
@@ -345,13 +551,13 @@ class SetgameDetectorHelper(
         //            lite_support#imageprocessor_architecture
         val imageProcessor =
             ImageProcessor.Builder()
-                //.add(Rot90Op(-imageRotation / 90))
+                .add(Rot90Op(-imageRotation / 90))
                 .build()
 
         // Preprocess the image and convert it into a TensorImage for detection.
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
 
-        val results = setgameResults(image, objectDetector?.detect(tensorImage))
+        val results = setgameResults(image, imageRotation, objectDetector?.detect(tensorImage))
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
         objectDetectorListener?.onResults(
             results,
@@ -363,6 +569,7 @@ class SetgameDetectorHelper(
     // setgame specific functions
     fun setgameResults(
         image: Bitmap,
+        imageRotation: Int,
         results: MutableList<Detection>?): MutableList<Detected> {
         var res = LinkedList<Detected>()
         if (results != null) {
@@ -374,7 +581,7 @@ class SetgameDetectorHelper(
             return res
 
         // below starts the SETGAME specific code
-        updateWithNewDetections(image, res)
+        updateWithNewDetections(image, imageRotation, res)
 
         // find sets and mark them as groups
         findSets()
@@ -387,6 +594,7 @@ class SetgameDetectorHelper(
 
     fun updateWithNewDetections(
             image: Bitmap,
+            imageRotation: Int,
             results: MutableList<Detected>) {
         var reDetectedCards = LinkedList<ViewCard>()
         var newDet = LinkedList<Detected>()
@@ -399,10 +607,8 @@ class SetgameDetectorHelper(
                     cards.remove(card)
                     reDetectedCards.add(card)
 
-                    // mark as re-detected
-                    card.markReDetected()
-                    // update new borders
-                    card.updateBorders(det)
+                    // mark as re-detected & udpdate all info
+                    card.markReDetected(det)
 
                     continue@outer
                 }
@@ -411,88 +617,76 @@ class SetgameDetectorHelper(
             newDet.add(det)
         }
 
-//        // try to reClassify redetectedCards if they're timed out
-//        // limit this to 5 cards at a time - we'll update them next detection period
-//        var reclassifiedCounter = 0
-//        for (card in reDetectedCards) {
-//            if (!card.isReClassifyCandidate())
-//                continue
-//            var border = card.getBoundingBox()
-//            var imageFrag = Bitmap.createBitmap(image,
-//                    (border.left*scaleFactor).toInt(),
-//                    (border.top*scaleFactor).toInt(),
-//                    ((border.right - border.left)*scaleFactor).toInt(),
-//                    ((border.bottom - border.top)*scaleFactor).toInt())
-//            var classRotation = 0
-//            if (imageFrag.width < imageFrag.height)
-//                classRotation = 1
-//            var res = classifyImage(imageFrag, classRotation)
-//            res?.let { it ->
-//                if (it.isNotEmpty()) {
-//                    val sortedCategories = it[0].categories //.sortedBy { it?.score }
-//                    card.updateClassification(
-//                            sortedCategories[0].label,
-//                            sortedCategories[0].score)
-//                    newCards.add(card)
-//                }
-//            }
-//            reclassifiedCounter++
-//            if (reclassifiedCounter > 5)
-//                break
-//        }
+        // try to reClassify redetectedCards if they're timed out
+        // limit this to 5 cards at a time - we'll update them next detection period
+        var reclassifiedCounter = 0
+        for (card in reDetectedCards) {
+            if (!card.isReClassifyCandidate())
+                continue
+            var res = classify(image, imageRotation, card.getBoundingBox())
+            res?.let { it ->
+                if (it.isNotEmpty()) {
+                    val sortedCategories = it[0].categories //.sortedBy { it?.score }
+                    card.updateClassification(sortedCategories)
+                }
+            }
+            reclassifiedCounter++
+            if (reclassifiedCounter > 5)
+                break
+        }
 
         // classify the newly appeared cards in newDet and add the to newCards
-        for (det in results) {
-            val scaleFactor =1
-            var border = det.getBoundingBox()
-
-            // skip if too big
-            if (((border.right - border.left)*scaleFactor).toInt()>= 1000 ||
-                    ((border.bottom - border.top)*scaleFactor).toInt() >= 1000)
-                continue
-
-            if (
-                    border.left.toInt() <= 0 ||
-                    border.top.toInt() <= 0 ||
-                    border.right.toInt() >= image.width ||
-                    border.bottom.toInt() >= image.height)
-                continue
-
-            buffer.width = (border.right - border.left).toInt()
-            buffer.height = (border.bottom - border.top).toInt()
-            image.getPixels(pixels, 0, ((border.right - border.left)*scaleFactor).toInt(),
-                    (border.left*scaleFactor).toInt(),
-                    (border.top*scaleFactor).toInt(),
-                    ((border.right - border.left)*scaleFactor).toInt(),
-                    ((border.bottom - border.top)*scaleFactor).toInt())
-            buffer.setPixels(pixels, 0,((border.right - border.left)*scaleFactor).toInt(),0,0,
-                    ((border.right - border.left)*scaleFactor).toInt(),
-                    ((border.bottom - border.top)*scaleFactor).toInt())
-            //buffer.setPixels()
-            var classRotation = 1
-            if (buffer.width < buffer.height)
-                classRotation = 0
-            var res = classifyImage(buffer, classRotation)
+        for (det in newDet) {
+            var res = classify(image, imageRotation, det.getBoundingBox())
             res?.let { it ->
                 if (it.isNotEmpty()) {
                     val sortedCategories = it[0].categories//.sortedBy { it?.score }
                     if (sortedCategories.size > 0) {
                         var card = ViewCard(det)
-                        card.updateClassification(
-                                sortedCategories[0].label,
-                                sortedCategories[0].score)
+                        card.updateClassification(sortedCategories)
                         newCards.add(card)
                     }
                 }
             }
         }
         // TODO: cards contains the list non matching cards - we need to handle them
-        // try to identify their new position and redetect them and add to reDetectedCards
+        // try to identify their new position based on the trajectory of redetected cards
+        // and redetect them and add to reDetectedCards
+        var t: BoundsTransformation? = null
+        for (card in reDetectedCards) {
+            // TBD: we're handling only move without zooming, rotating and etc. even though it's possible to try those as well later
+            val xt = card.getBoundsTransformation()
+            if (xt != null) {
+                t = xt
+                // reset scaling for now to make a more stable result
+                t.scaleX = 1.0f
+                t.scaleY = 1.0f
+            }
+        }
+        if (t != null) {
+            // we can try to transform and classify
+            for (card in cards) {
+                card.applyBoundsTransformation(t!!)
+                var res = classify(image, imageRotation, card.getBoundingBox())
+                res?.let { it ->
+                    if (it.isNotEmpty()) {
+                        val sortedCategories = it[0].categories//.sortedBy { it?.score }
+                        if (sortedCategories.size > 0) {
+                            card.updateClassification(sortedCategories)
+                            reDetectedCards.add(card)
+                        }
+                    }else {
+                        if (!card.isDetectionOutdated()){
+                            reDetectedCards.add(card)
+                        }
+                    }
+                }
+            }
+        }
 
         // update the internal list with all we found
-        //cards = reDetectedCards
-        //cards.addAll(newCards)
-        cards = newCards
+        cards = reDetectedCards
+        cards.addAll(newCards)
     }
     fun findSets(): Boolean {
         var vCardsByName = HashMap<Card,ViewCard>()

@@ -12,8 +12,8 @@ fun countFromString(input: String): Int? {
 
 enum class Color(val code: Int) {
     RED(1),
-    GREEN(2),
-    PURPLE(3)
+    PURPLE(2),
+    GREEN(3),
 }
 
 fun colorFromString(input: String): Color? {
@@ -27,9 +27,9 @@ fun colorFromString(input: String): Color? {
 }
 
 enum class Fill(val code: Int) {
-    EMPTY(1),
+    SOLID(1),
     STRIPED(2),
-    SOLID(3)
+    EMPTY(3),
 }
 
 fun fillFromString(input: String): Fill? {
@@ -43,9 +43,9 @@ fun fillFromString(input: String): Fill? {
 }
 
 enum class Shape(val code: Int) {
-    OVAL(1),
+    SQUIGGLE(1),
     DIAMOND(2),
-    SQUIGGLE(3)
+    OVAL(3),
 }
 
 fun shapeFromString(input: String): Shape? {

@@ -18,6 +18,8 @@ package org.tensorflow.lite.examples.objectdetection
 
 import android.content.Context
 import android.content.res.TypedArray
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -28,7 +30,7 @@ import android.view.View
 import androidx.core.content.ContextCompat
 import java.util.LinkedList
 import kotlin.math.max
-import org.tensorflow.lite.task.vision.detector.Detection
+import java.io.InputStream
 
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
@@ -38,6 +40,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
     private var textBackgroundPaint = Paint()
     private var textPaint = Paint()
     private var groupBoxPaintMap = HashMap<Int, Paint>()
+    private var thumbnailsBitmap: Bitmap? = null
 
     private var scaleFactor: Float = 1f
 
@@ -70,6 +73,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         boxPaint.strokeWidth = 8F
         boxPaint.style = Paint.Style.STROKE
 
+        // init colors for groups
         groupBoxPaintMap.clear()
         val colors: TypedArray = resources.obtainTypedArray(R.array.groupColors)
         for (i in 0 until colors.length()) {
@@ -79,6 +83,13 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
             p.style = boxPaint.style
             groupBoxPaintMap[i] = p
         }
+
+        // init thumbnail Bitmap
+        if (thumbnailsBitmap == null) {
+            val inputStream = resources.assets.open("setgame-cards.png")
+            thumbnailsBitmap = BitmapFactory.decodeStream(inputStream)
+        }
+
     }
 
     override fun draw(canvas: Canvas) {
@@ -113,24 +124,54 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
             }
 
             // Create text to display alongside detected objects
-            val drawableText =
-                result.getCategories()[0].label + " " +
-                        String.format("%.2f", result.getCategories()[0].score)
+            var shiftX = 0
+            var label = result.getCategories()[0].label + " "
+            val crd = cardFromString(result.getCategories()[0].label)
+            if (crd != null && thumbnailsBitmap != null) {
+                // don't need label - we'll draw a picture instead
+                label = ""
+                shiftX = thumbnailsBitmap!!.width/9 // we have put 9 cards in the row
+
+                val idx = (((crd.fill.code-1)*3+(crd.shape.code-1))*3 + (crd.color.code-1))*3 + (crd.count-1)
+                assert(idx >=0 && idx < 81)
+
+                val column = idx % 9
+                val row = idx / 9
+
+                val src = Rect(
+                        thumbnailsBitmap!!.width/9 *column,
+                        thumbnailsBitmap!!.height/9*row,
+                        thumbnailsBitmap!!.width/9 *(column+1),
+                        thumbnailsBitmap!!.height/9*(row+1))
+                val dst = RectF(
+                        left,
+                        top,
+                        left + thumbnailsBitmap!!.width/9,
+                        top + thumbnailsBitmap!!.height/9)
+
+                canvas.drawBitmap(thumbnailsBitmap!!,
+                        src,
+                        dst,
+                        textBackgroundPaint
+                )
+            }
+
+            val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
 
             // Draw rect behind display text
             textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
             val textWidth = bounds.width()
             val textHeight = bounds.height()
             canvas.drawRect(
-                left,
+                left + shiftX,
                 top,
-                left + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
                 top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
                 textBackgroundPaint
             )
 
             // Draw text for detected object
-            canvas.drawText(drawableText, left, top + bounds.height(), textPaint)
+            canvas.drawText(drawableText, left+ shiftX, top + bounds.height(), textPaint)
         }
     }
 

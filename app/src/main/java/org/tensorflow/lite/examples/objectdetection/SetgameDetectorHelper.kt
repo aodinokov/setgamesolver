@@ -72,9 +72,6 @@ data class CategoryStat(
 
 class ViewCard(var x: Detected):  Grouppable(){
     public var overriddenName: String? = null
-    //public var detectedName = x.getCategories()[0].label
-    public var classifiedName = ""
-    public var classifiedScore: Float = 0.0F
 
     public var classificationStat = HashMap<String, CategoryStat>()
 
@@ -93,7 +90,12 @@ class ViewCard(var x: Detected):  Grouppable(){
     fun name(): String{
         if (overriddenName != null)
             return overriddenName.toString()
-        return classifiedName
+
+        val cats = getAccumulatedClassifications()
+        if (cats != null && cats.size > 0) {
+            return cats[0].label
+        }
+        return ""
     }
 
     fun isWithinBorders(x: Detected): Boolean {
@@ -158,33 +160,6 @@ class ViewCard(var x: Detected):  Grouppable(){
     fun updateClassification(newCategories: MutableList<Category>) {
         classifiedCategories = newCategories
 
-        if (classifiedCategories.size > 0) {
-            // calculate this in this way for now
-            classifiedName = classifiedCategories[0].label
-            classifiedScore = classifiedCategories[0].score
-        }
-
-        // doesn't work yet
-//        var score = 0f
-//        for (cat in classifiedCategories) {
-//            val stat = classificationStat[cat.label]
-//            var curScore = 0f
-//            if (stat != null) {
-//                stat.scaleSum = cat.score
-//                stat.scaleNum = stat.scaleNum + 1
-//                curScore = stat.scaleSum/stat.scaleNum
-//            } else {
-//                classificationStat[cat.label] = CategoryStat(cat.score, 1.0f)
-//                curScore = cat.score
-//            }
-//            if (curScore > score) {
-//                classifiedName = cat.label
-//                classifiedScore = score
-//                score = curScore
-//            }
-//        }
-
-        var max = 0f
         for (cat in classifiedCategories) {
             var stat = classificationStat[cat.label]
             var curScore = cat.score
@@ -196,14 +171,21 @@ class ViewCard(var x: Detected):  Grouppable(){
             }else {
                 classificationStat[cat.label] = CategoryStat(cat.score)
             }
-            if (max < curScore) {
-                max = curScore
-                classifiedName = cat.label
-                classifiedScore = curScore
-            }
         }
 
         classifiedTime = SystemClock.uptimeMillis()
+    }
+
+    fun getAccumulatedClassifications(): MutableList<Category>? {
+        if (classifiedCategories == null && classifiedCategories.size == 0)
+            return null
+
+        var res = LinkedList<Category>()
+        for (cat in classificationStat.keys){
+            res.add(Category(cat, classificationStat[cat]!!.scoreMax))
+        }
+        res.sortByDescending { it.score }
+        return res
     }
 
     fun isReClassifyCandidate(): Boolean {
@@ -221,23 +203,10 @@ class ViewCard(var x: Detected):  Grouppable(){
     }
 
     override fun getCategories(): MutableList<Category> {
-        if (classifiedCategories != null && classifiedCategories.size >0) {
-            //return classifiedCategories
-//            var res = LinkedList<Category>()
-//            for (cat in classificationStat.keys){
-//                res.add(Category(cat, classificationStat[cat]!!.scaleSum/classificationStat[cat]!!.scaleNum))
-//            }
-//            res.sortByDescending { it.score }
-//            return res
+        val cats = getAccumulatedClassifications()
+        if (cats != null)
+            return cats!!
 
-            var res = LinkedList<Category>()
-            for (cat in classificationStat.keys){
-                res.add(Category(cat, classificationStat[cat]!!.scoreMax))
-            }
-            res.sortByDescending { it.score }
-            return res
-
-        }
         return detectedCategories
     }
 }
@@ -442,13 +411,6 @@ class SetgameDetectorHelper(
         // filter by picture size
         if (right - left>= 1000 || bottom - top >= 1000)
             return null
-
-//        // adjust rotation
-//        val orig_width = right - left
-//        val orig_height = bottom - top
-//        var classificationRotation = Surface.ROTATION_90
-//        if (orig_width < orig_height)
-//            classificationRotation = 0
 
         // rotate within image
         when (imageRotation/90) {

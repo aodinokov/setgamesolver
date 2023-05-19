@@ -197,10 +197,10 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
 
             if (!setgameDetectorHelper.scanEnabled) {
-                setgameDetectorHelper.clearCards()
                 fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
                     "n/a"
             }
+            setgameDetectorHelper.clearCards()
             updateControlsUi()
         }
     }

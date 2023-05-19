@@ -30,7 +30,6 @@ import android.view.View
 import androidx.core.content.ContextCompat
 import java.util.LinkedList
 import kotlin.math.max
-import java.io.InputStream
 
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
@@ -123,55 +122,57 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 canvas.drawRect(drawableRect, boxPaint)
             }
 
-            // Create text to display alongside detected objects
-            var shiftX = 0
-            var label = result.getCategories()[0].label + " "
-            val crd = cardFromString(result.getCategories()[0].label)
-            if (crd != null && thumbnailsBitmap != null) {
-                // don't need label - we'll draw a picture instead
-                label = ""
-                shiftX = thumbnailsBitmap!!.width/9 // we have put 9 cards in the row
+            if (result.getCategories().size > 0) {
+                // Create text to display alongside detected objects
+                var shiftX = 0
+                var label = result.getCategories()[0].label + " "
+                val crd = cardFromString(result.getCategories()[0].label)
+                if (crd != null && thumbnailsBitmap != null) {
+                    // don't need label - we'll draw a picture instead
+                    label = ""
+                    shiftX = thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
 
-                val idx = (((crd.fill.code-1)*3+(crd.shape.code-1))*3 + (crd.color.code-1))*3 + (crd.count-1)
-                assert(idx >=0 && idx < 81)
+                    val idx = (((crd.cardFill.code - 1) * 3 + (crd.cardShape.code - 1)) * 3 + (crd.cardColor.code - 1)) * 3 + (crd.count - 1)
+                    assert(idx >= 0 && idx < 81)
 
-                val column = idx % 9
-                val row = idx / 9
+                    val column = idx % 9
+                    val row = idx / 9
 
-                val src = Rect(
-                        thumbnailsBitmap!!.width/9 *column,
-                        thumbnailsBitmap!!.height/9*row,
-                        thumbnailsBitmap!!.width/9 *(column+1),
-                        thumbnailsBitmap!!.height/9*(row+1))
-                val dst = RectF(
-                        left,
+                    val src = Rect(
+                            thumbnailsBitmap!!.width / 9 * column,
+                            thumbnailsBitmap!!.height / 9 * row,
+                            thumbnailsBitmap!!.width / 9 * (column + 1),
+                            thumbnailsBitmap!!.height / 9 * (row + 1))
+                    val dst = RectF(
+                            left,
+                            top,
+                            left + thumbnailsBitmap!!.width / 9,
+                            top + thumbnailsBitmap!!.height / 9)
+
+                    canvas.drawBitmap(thumbnailsBitmap!!,
+                            src,
+                            dst,
+                            textBackgroundPaint
+                    )
+                }
+
+                val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
+
+                // Draw rect behind display text
+                textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
+                val textWidth = bounds.width()
+                val textHeight = bounds.height()
+                canvas.drawRect(
+                        left + shiftX,
                         top,
-                        left + thumbnailsBitmap!!.width/9,
-                        top + thumbnailsBitmap!!.height/9)
-
-                canvas.drawBitmap(thumbnailsBitmap!!,
-                        src,
-                        dst,
+                        left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                        top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
                         textBackgroundPaint
                 )
+
+                // Draw text for detected object
+                canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
             }
-
-            val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
-
-            // Draw rect behind display text
-            textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
-            val textWidth = bounds.width()
-            val textHeight = bounds.height()
-            canvas.drawRect(
-                left + shiftX,
-                top,
-                left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
-                textBackgroundPaint
-            )
-
-            // Draw text for detected object
-            canvas.drawText(drawableText, left+ shiftX, top + bounds.height(), textPaint)
         }
     }
 

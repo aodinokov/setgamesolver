@@ -17,6 +17,8 @@ package org.tensorflow.lite.examples.objectdetection
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.ColorMatrix
 import android.graphics.RectF
 import android.os.SystemClock
 import android.util.Log
@@ -35,6 +37,7 @@ import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.util.*
 import kotlin.collections.HashMap
 import kotlin.math.absoluteValue
+import kotlin.math.pow
 
 /*WA: it was necessary to create our own copy, because we couldn't inherit from Detection */
 abstract class Detected() {
@@ -74,6 +77,8 @@ class ViewCard(var x: Detected):  Grouppable(){
     public var overriddenName: String? = null
 
     public var classificationStat = HashMap<String, CategoryStat>()
+    // corrections by adhoc algorithm
+    public var colorCorrection: CardColor? = null
 
     public var bounds = x.getBoundingBox()
     public var prevBounds: RectF? = null
@@ -176,6 +181,13 @@ class ViewCard(var x: Detected):  Grouppable(){
         classifiedTime = SystemClock.uptimeMillis()
     }
 
+    fun updateCorrections(color: CardColor?) {
+        // TODO: maybe add timer
+        //if (color != null) {
+            colorCorrection = color
+        //}
+    }
+
     fun getAccumulatedClassifications(): MutableList<Category>? {
         if (classifiedCategories == null && classifiedCategories.size == 0)
             return null
@@ -185,6 +197,16 @@ class ViewCard(var x: Detected):  Grouppable(){
             res.add(Category(cat, classificationStat[cat]!!.scoreMax))
         }
         res.sortByDescending { it.score }
+
+        // update the first element with corrections
+        if (colorCorrection != null && res.size > 0) {
+            var crd = cardFromString(res[0].label)
+            if (crd != null) {
+                crd.cardColor = colorCorrection!!
+                res[0] = Category(cardToString(crd),  -1.0f * res[0].score  /*mark that there was correction*/)
+            }
+        }
+
         return res
     }
 
@@ -234,6 +256,8 @@ class ResultCard(val x: ViewCard):  Grouppable() {
         return cats
     }
 }
+
+data class classificationWithCorrection(val classifications: MutableList<Category>, val color: CardColor?)
 
 class SetgameDetectorHelper(
     var scanEnabled: Boolean = false,
@@ -402,7 +426,7 @@ class SetgameDetectorHelper(
     // Mutable buffers for fun classify
     private var buffer: Bitmap = Bitmap.createBitmap(1000, 1000, Bitmap.Config.ARGB_8888)
     private var pixels = IntArray(1000 * 1000);
-    fun classify(image: Bitmap, imageRotation: Int, border: RectF): List<Classifications>? {
+    fun classify(image: Bitmap, imageRotation: Int, border: RectF): classificationWithCorrection? {
         var top = border.top.toInt()
         var bottom = border.bottom.toInt()
         var left = border.left.toInt()
@@ -469,7 +493,6 @@ class SetgameDetectorHelper(
         if (width <= 0 || height <=0 )
             return null
 
-
         assert(left + width <= image.width &&
                 top + height <= image.height, {
                 "left+width:" + (left + width).toString() +
@@ -489,12 +512,155 @@ class SetgameDetectorHelper(
                 top,
                 width,
                 height)
+
         buffer.setPixels(pixels, 0,width,0,0,
                 width,
                 height)
 
-        return classifyImage(buffer, classificationRotation)
+        // todo - make configurable and with different capabilities
+        var clr = adhocCardColorGuess(buffer, pixels)
+        val res = classifyImage(buffer, classificationRotation)
+
+        res?.let { it ->
+            if (it.isNotEmpty()) {
+                //compare clr
+                if (clr != null && it[0].categories.size > 0){
+                    val crd = cardFromString(it[0].categories[0].label)
+                    if (crd != null && crd.cardColor == clr) {
+                        // we don't need correction - make it null
+                        clr = null
+                    }
+                }
+                return classificationWithCorrection(it[0].categories, clr)
+            }
+        }
+        return null
     }
+
+    fun arePixelsSimilar(pixel1: Int, pixel2: Int, threshold: Float): Boolean {
+        // Get the RGB values of the pixels.
+        val pixel1Red = Color.red(pixel1)
+        val pixel1Green = Color.green(pixel1)
+        val pixel1Blue = Color.blue(pixel1)
+
+        val pixel2Red = Color.red(pixel2)
+        val pixel2Green = Color.green(pixel2)
+        val pixel2Blue = Color.blue(pixel2)
+
+        // Get the maximum values of the RGB channels.
+        val p1Max = Math.max(Math.max(pixel1Red, pixel1Green), pixel1Blue)
+        val p2Max = Math.max(Math.max(pixel2Red, pixel2Green), pixel2Blue)
+        // both black
+        if (p1Max == 0 && p2Max == 0) return true
+        // can't compare similarity with black
+        if (p1Max == 0 && p2Max != 0 || p1Max !=0 && p2Max == 0) return false
+
+        // Calculate the normalized Euclidean distance between the pixels.
+        val normalizedDistance = Math.sqrt(((pixel1Red.toDouble() / p1Max.toDouble() - pixel2Red.toDouble() / p2Max.toDouble()).pow(2) +
+                (pixel1Green.toDouble() / p1Max.toDouble() - pixel2Green.toDouble() / p2Max.toDouble()).pow(2) +
+                (pixel1Blue.toDouble() / p1Max.toDouble() - pixel2Blue.toDouble() / p2Max.toDouble()).pow(2)))
+
+        // Return true if the normalized Euclidean distance is less than a threshold.
+        return normalizedDistance < threshold
+    }
+    fun adhocCardColorGuess(buffer: Bitmap, pixels: IntArray): CardColor? {
+        //constants
+        var redCardPx = Color.rgb(235, 30, 45)
+        var greenCardPx = Color.rgb(20, 170, 80)
+        var purpleCardPx = Color.rgb(100,50,150)
+
+        val threshold = 0.5f
+
+        var redPixCount = 0
+        var greenPixCount = 0
+        var purplePixCount = 0
+
+        var steps = 0
+        if (buffer.height > buffer.width) {
+            // todo - maybe better count from center in both dirs and stop when pixels are white
+            for (i in 0 until buffer.height/2) {
+                steps =  steps + 1
+                var x = pixels[buffer.width / 2 + (buffer.height/2 + i) * buffer.width]
+                if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
+                if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
+                if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
+                steps =  steps + 1
+                x = pixels[buffer.width / 2 + (buffer.height/2 - i) * buffer.width]
+                if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
+                if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
+                if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
+                if (Math.max(Math.max(redPixCount, greenPixCount), purplePixCount) >= 3)
+                    break
+            }
+        }else {
+            for (i in 0 until buffer.width/2) {
+                steps =  steps + 1
+                var x = pixels[buffer.height * buffer.width / 2 + buffer.width/2 + i]
+                if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
+                if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
+                if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
+                steps =  steps + 1
+                x = pixels[buffer.height * buffer.width / 2 + buffer.width/2 - i]
+                if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
+                if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
+                if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
+                if (Math.max(Math.max(redPixCount, greenPixCount), purplePixCount) >= 3)
+                    break
+            }
+        }
+        val max = Math.max(Math.max(redPixCount, greenPixCount), purplePixCount)
+        if (max < 3) {
+            // if number is less than 5%
+            return null
+        }
+        if (redPixCount == max) return CardColor.RED
+        if (greenPixCount == max) return CardColor.GREEN
+        return CardColor.PURPLE
+    }
+
+//    fun tryToFixWhiteBalance(buffer: Bitmap, pixels: IntArray) {
+//
+//        var vR = 0
+//        var vG = 0
+//        var vB = 0
+//
+//        if (buffer.height > buffer.width) {
+//            for (i in 0 until buffer.height) {
+//                val x = pixels[buffer.width / 2 + i * buffer.width]
+//                if (vR + vG + vB < Color.red(x)+ Color.green(x) + Color.blue(x)) {
+//                    vR = Color.red(x)
+//                    vG = Color.green(x)
+//                    vB = Color.blue(x)
+//                }
+//            }
+//        }else {
+//            for (i in 0 until buffer.width) {
+//                val x = pixels[buffer.height * buffer.width / 2 + i ]
+//                if (vR + vG + vB < Color.red(x)+ Color.green(x) + Color.blue(x)) {
+//                    vR = Color.red(x)
+//                    vG = Color.green(x)
+//                    vB = Color.blue(x)
+//                }
+//            }
+//        }
+//        if (vR < 100 || vG < 100 || vB < 100)
+//            return // won't do it since it's too dark
+//
+//
+//        // slow.. Can't apply Matrix to bitmap
+//        for (i in 0 until buffer.width * buffer.height) {
+//            var R = Color.red(pixels[i])*(256+30)/vR
+//            var G = Color.green(pixels[i])*(256+30)/vG
+//            var B = Color.blue(pixels[i])*(256+30)/vB
+//
+//            if (R>255) R=255
+//            if (G>255) G=255
+//            if (B>255) B=255
+//
+//            pixels[i] = Color.rgb(R,G,B)
+//        }
+//    }
+
     fun detect(image: Bitmap, imageRotation: Int) {
         // ensure all tools are ready
         if (objectDetector == null) {
@@ -586,11 +752,9 @@ class SetgameDetectorHelper(
             if (!card.isReClassifyCandidate())
                 continue
             var res = classify(image, imageRotation, card.getBoundingBox())
-            res?.let { it ->
-                if (it.isNotEmpty()) {
-                    val sortedCategories = it[0].categories //.sortedBy { it?.score }
-                    card.updateClassification(sortedCategories)
-                }
+            if (res != null) {
+                card.updateClassification(res.classifications)
+                card.updateCorrections(res.color)
             }
             reclassifiedCounter++
             if (reclassifiedCounter > 5)
@@ -600,15 +764,11 @@ class SetgameDetectorHelper(
         // classify the newly appeared cards in newDet and add the to newCards
         for (det in newDet) {
             var res = classify(image, imageRotation, det.getBoundingBox())
-            res?.let { it ->
-                if (it.isNotEmpty()) {
-                    val sortedCategories = it[0].categories//.sortedBy { it?.score }
-                    if (sortedCategories.size > 0) {
-                        var card = ViewCard(det)
-                        card.updateClassification(sortedCategories)
-                        newCards.add(card)
-                    }
-                }
+            if (res != null) {
+                var card = ViewCard(det)
+                card.updateClassification(res.classifications)
+                card.updateCorrections(res.color)
+                newCards.add(card)
             }
         }
         // TODO: cards contains the list non matching cards - we need to handle them
@@ -630,17 +790,13 @@ class SetgameDetectorHelper(
             for (card in cards) {
                 card.applyBoundsTransformation(t!!)
                 var res = classify(image, imageRotation, card.getBoundingBox())
-                res?.let { it ->
-                    if (it.isNotEmpty()) {
-                        val sortedCategories = it[0].categories//.sortedBy { it?.score }
-                        if (sortedCategories.size > 0) {
-                            card.updateClassification(sortedCategories)
-                            reDetectedCards.add(card)
-                        }
-                    }else {
-                        if (!card.isDetectionOutdated()){
-                            reDetectedCards.add(card)
-                        }
+                if (res != null && res.classifications.size > 0){
+                    card.updateClassification(res.classifications)
+                    card.updateCorrections(res.color)
+                    reDetectedCards.add(card)
+                }else {
+                    if (!card.isDetectionOutdated()){
+                        reDetectedCards.add(card)
                     }
                 }
             }
@@ -727,3 +883,4 @@ class SetgameDetectorHelper(
         const val MODEL_MOBILENETV1 = 2
     }
 }
+

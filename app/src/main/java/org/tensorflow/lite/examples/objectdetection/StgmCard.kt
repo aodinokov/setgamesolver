@@ -10,58 +10,92 @@ fun countFromString(input: String): Int? {
     return null
 }
 
-enum class Color(val code: Int) {
+enum class CardColor(val code: Int) {
     RED(1),
     PURPLE(2),
     GREEN(3),
 }
 
-fun colorFromString(input: String): Color? {
+fun colorFromString(input: String): CardColor? {
     if (input == "red")
-        return Color.RED
+        return CardColor.RED
     if (input == "green")
-        return Color.GREEN
+        return CardColor.GREEN
     if (input == "purple")
-        return Color.PURPLE
+        return CardColor.PURPLE
     return null
 }
 
-enum class Fill(val code: Int) {
+fun colorToString(input: CardColor): String {
+    if (input == CardColor.RED)
+        return "red"
+    if (input == CardColor.GREEN)
+        return "green"
+    if (input == CardColor.PURPLE)
+        return "purple"
+    return ""
+}
+
+
+enum class CardFill(val code: Int) {
     SOLID(1),
     STRIPED(2),
     EMPTY(3),
 }
 
-fun fillFromString(input: String): Fill? {
+fun fillFromString(input: String): CardFill? {
     if (input == "empty")
-        return Fill.EMPTY
+        return CardFill.EMPTY
     if (input == "striped")
-        return Fill.STRIPED
+        return CardFill.STRIPED
     if (input == "solid")
-        return Fill.SOLID
+        return CardFill.SOLID
     return null
 }
 
-enum class Shape(val code: Int) {
+fun fillToString(input: CardFill): String {
+    if (input == CardFill.EMPTY)
+        return "empty"
+    if (input == CardFill.STRIPED)
+        return "striped"
+    if (input == CardFill.SOLID)
+        return "solid"
+    return ""
+}
+
+enum class CardShape(val code: Int) {
     SQUIGGLE(1),
     DIAMOND(2),
     OVAL(3),
 }
 
-fun shapeFromString(input: String): Shape? {
+fun shapeFromString(input: String): CardShape? {
     if (    input == "oval" ||
             input == "ovals")
-        return Shape.OVAL
+        return CardShape.OVAL
     if (    input == "diamond" ||
             input == "diamonds")
-        return Shape.DIAMOND
+        return CardShape.DIAMOND
     if (    input == "squiggle" ||
             input == "squiggles")
-        return Shape.SQUIGGLE
+        return CardShape.SQUIGGLE
     return null
 }
 
-data class Card(val count: Int, var color: Color, var fill: Fill, var shape: Shape)
+fun shapeFromString(n: Int, input: CardShape): String {
+    if (n>1) {
+        if (input == CardShape.OVAL)return "oval"
+        if (input == CardShape.DIAMOND)return "diamond"
+        if (input == CardShape.SQUIGGLE)return "squiggle"
+    } else {
+        if (input == CardShape.OVAL)return "ovals"
+        if (input == CardShape.DIAMOND)return "diamonds"
+        if (input == CardShape.SQUIGGLE)return "squiggles"
+    }
+    return ""
+}
+
+data class Card(val count: Int, var cardColor: CardColor, var cardFill: CardFill, var cardShape: CardShape)
 data class Solution(var cards: Set<Card>)
 
 fun cardFromString(input: String): Card? {
@@ -70,10 +104,19 @@ fun cardFromString(input: String): Card? {
         return null
     }
     val count: Int = countFromString(parts.elementAt(0)) ?: return null
-    val color: Color = colorFromString(parts.elementAt(1)) ?: return null
-    val fill: Fill = fillFromString(parts.elementAt(2)) ?: return null
-    val shape: Shape = shapeFromString(parts.elementAt(3)) ?: return null
-    return Card(count, color, fill, shape)
+    val cardColor: CardColor = colorFromString(parts.elementAt(1)) ?: return null
+    val cardFill: CardFill = fillFromString(parts.elementAt(2)) ?: return null
+    val cardShape: CardShape = shapeFromString(parts.elementAt(3)) ?: return null
+    return Card(count, cardColor, cardFill, cardShape)
+}
+
+fun cardToString(crd: Card): String {
+    return String.format("%d-%s-%s-%s",
+            crd.count,
+            colorToString(crd.cardColor),
+            fillToString(crd.cardFill),
+            shapeFromString(crd.count, crd.cardShape)
+            )
 }
 
 /**
@@ -90,9 +133,9 @@ fun findAllSolutions(input: Set<Card>): Set<Solution> {
                 val c2 = input.elementAt(k)
 
                 val count = c0.count + c1.count + c2.count
-                val color = c0.color.code + c1.color.code + c2.color.code
-                val fill = c0.fill.code + c1.fill.code + c2.fill.code
-                val shape = c0.shape.code + c1.shape.code +c2.shape.code
+                val color = c0.cardColor.code + c1.cardColor.code + c2.cardColor.code
+                val fill = c0.cardFill.code + c1.cardFill.code + c2.cardFill.code
+                val shape = c0.cardShape.code + c1.cardShape.code +c2.cardShape.code
 
                 if (    count%3 == 0 &&
                         color%3 == 0 &&

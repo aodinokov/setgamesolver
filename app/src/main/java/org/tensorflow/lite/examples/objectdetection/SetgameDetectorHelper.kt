@@ -513,12 +513,15 @@ class SetgameDetectorHelper(
                 width,
                 height)
 
+        //tryToFixWhiteBalance2(buffer,pixels)
+        // todo - make configurable and with different capabilities
+        var clr = adhocCardColorGuess(buffer, pixels)
+
+
         buffer.setPixels(pixels, 0,width,0,0,
                 width,
                 height)
 
-        // todo - make configurable and with different capabilities
-        var clr = adhocCardColorGuess(buffer, pixels)
         val res = classifyImage(buffer, classificationRotation)
 
         res?.let { it ->
@@ -563,54 +566,68 @@ class SetgameDetectorHelper(
         // Return true if the normalized Euclidean distance is less than a threshold.
         return normalizedDistance < threshold
     }
+
+    // this is to convert colors of card to orthogonal colors R->R, G->G, P->B
+    fun convertColor(i: Int): Int {
+        var R = 1.11774046381125 * Color.red(i) + 0.41742655536581 * Color.green(i) -0.882213032138101 * Color.blue(i) -0.532985061400914
+        var G = -0.0824530483548527 * Color.red(i) + 1.15725509229763 * Color.green(i) -0.328404418643824 * Color.blue(i) -0.604839520916569
+        var B = -0.171370597616489 * Color.red(i) + 0.41742655536581 * Color.green(i) +1.32377249565436 * Color.blue(i) -0.765990576895068
+
+        if (R>255) R=255.0
+        if (R<0) R=0.0
+        if (G>255) G=255.0
+        if (G<0) G=0.0
+        if (B>255) B=255.0
+        if (B<0) B=0.0
+
+        return Color.rgb(R.toInt(),G.toInt(),B.toInt())
+    }
     fun adhocCardColorGuess(buffer: Bitmap, pixels: IntArray): CardColor? {
         //constants
-        var redCardPx = Color.rgb(235, 30, 45)
-        var greenCardPx = Color.rgb(20, 170, 80)
-        var purpleCardPx = Color.rgb(100,50,150)
+        var redCardPx = Color.rgb(255, 0, 0)
+        var greenCardPx = Color.rgb(0, 255, 0)
+        var purpleCardPx = Color.rgb(0,0,255)
 
-        val threshold = 0.5f
+        val threshold = 0.45f
 
         var redPixCount = 0
         var greenPixCount = 0
         var purplePixCount = 0
 
-        var steps = 0
-        if (buffer.height > buffer.width) {
+        var height = buffer.height - (buffer.height%2)
+
+        if (height > buffer.width) {
             // todo - maybe better count from center in both dirs and stop when pixels are white
-            for (i in 0 until buffer.height/2) {
-                steps =  steps + 1
-                var x = pixels[buffer.width / 2 + (buffer.height/2 + i) * buffer.width]
+            for (i in 0 until height/3) {
+                var x = convertColor(pixels[buffer.width / 2 + (height/2 + i) * buffer.width])
                 if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
                 if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
                 if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
-                steps =  steps + 1
-                x = pixels[buffer.width / 2 + (buffer.height/2 - i) * buffer.width]
+                //pixels[buffer.width / 2 + (height/2 + i) * buffer.width] = Color.WHITE
+
+                x = convertColor(pixels[buffer.width / 2 + (height/2 - i) * buffer.width])
                 if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
                 if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
                 if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
-                if (Math.max(Math.max(redPixCount, greenPixCount), purplePixCount) >= 3)
-                    break
+                //pixels[buffer.width / 2 + (height/2 - i) * buffer.width] = Color.WHITE
             }
         }else {
-            for (i in 0 until buffer.width/2) {
-                steps =  steps + 1
-                var x = pixels[buffer.height * buffer.width / 2 + buffer.width/2 + i]
+            for (i in 0 until buffer.width/3) {
+                var x = convertColor(pixels[height / 2 * buffer.width + buffer.width/2 + i])
                 if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
                 if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
                 if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
-                steps =  steps + 1
-                x = pixels[buffer.height * buffer.width / 2 + buffer.width/2 - i]
+                //pixels[height / 2 * buffer.width  + buffer.width/2 + i] = Color.WHITE
+
+                x = convertColor(pixels[height / 2 * buffer.width  + buffer.width /2 - i])
                 if (arePixelsSimilar(redCardPx, x, threshold))redPixCount = redPixCount + 1
                 if (arePixelsSimilar(greenCardPx, x, threshold))greenPixCount = greenPixCount + 1
                 if (arePixelsSimilar(purpleCardPx, x, threshold))purplePixCount = purplePixCount + 1
-                if (Math.max(Math.max(redPixCount, greenPixCount), purplePixCount) >= 3)
-                    break
+                //pixels[height / 2 * buffer.width + buffer.width/2 - i] = Color.WHITE
             }
         }
         val max = Math.max(Math.max(redPixCount, greenPixCount), purplePixCount)
-        if (max < 3) {
-            // if number is less than 5%
+        if (max < 2) {
             return null
         }
         if (redPixCount == max) return CardColor.RED
@@ -658,6 +675,14 @@ class SetgameDetectorHelper(
 //            if (B>255) B=255
 //
 //            pixels[i] = Color.rgb(R,G,B)
+//        }
+//    }
+
+
+//    fun tryToFixWhiteBalance2(buffer: Bitmap, pixels: IntArray) {
+//        // slow.. Can't apply Matrix to bitmap
+//        for (i in 0 until buffer.width * buffer.height) {
+//            pixels[i] = convertColor(pixels[i])
 //        }
 //    }
 

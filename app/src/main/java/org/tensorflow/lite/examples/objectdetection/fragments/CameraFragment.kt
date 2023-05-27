@@ -16,8 +16,14 @@
 package org.tensorflow.lite.examples.objectdetection.fragments
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
+import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.params.StreamConfigurationMap
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
@@ -26,7 +32,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.Toast
-import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -38,13 +43,13 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import org.tensorflow.lite.examples.objectdetection.Detected
+import org.tensorflow.lite.examples.objectdetection.R
+import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
+import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
-import org.tensorflow.lite.examples.objectdetection.R
-import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
-import org.tensorflow.lite.task.vision.detector.Detection
+
 
 class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
@@ -247,6 +252,14 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     @SuppressLint("UnsafeOptInUsageError")
     private fun bindCameraUseCases() {
 
+//        val cameraManager =  context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+//        for (cameraId in cameraManager.cameraIdList){
+//            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+//            val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+//            val sizes = streamConfigurationMap?.getOutputSizes(ImageFormat.RAW_SENSOR);
+//            Log.d(TAG, "onCreate:" + sizes.toString());
+//        }
+
         // CameraProvider
         val cameraProvider =
             cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
@@ -259,7 +272,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         preview =
             Preview.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setTargetResolution(Size(1024, 768))
+                //.setTargetResolution(Size(1024, 768))
+                    .setTargetResolution(Size(1088, 1088))
                     //.setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .build()
@@ -268,7 +282,9 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         imageAnalyzer =
             ImageAnalysis.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setTargetResolution(Size(1024, 768))
+                //.setTargetResolution(Size(1024, 768))
+                    .setTargetResolution(Size(1088, 1088))
+
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(OUTPUT_IMAGE_FORMAT_RGBA_8888)

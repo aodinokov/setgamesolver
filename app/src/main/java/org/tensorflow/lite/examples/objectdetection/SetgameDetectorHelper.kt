@@ -17,8 +17,6 @@ package org.tensorflow.lite.examples.objectdetection
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.ColorMatrix
 import android.graphics.RectF
 import android.os.SystemClock
 import android.util.Log
@@ -37,7 +35,6 @@ import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.util.*
 import kotlin.collections.HashMap
 import kotlin.math.absoluteValue
-import kotlin.math.pow
 
 /*WA: it was necessary to create our own copy, because we couldn't inherit from Detection */
 abstract class Detected() {
@@ -67,18 +64,12 @@ data class BoundsTransformation(
         var scaleX:Float,
         var scaleY: Float)
 
-data class CategoryStat(
-        var scoreMax: Float
-//        var scaleSum: Float, // probabilites sum
-//        var scaleNum: Float  // number of times we added
-)
+//data class CategoryStat(
+//        var scoreMax: Float
+//)
 
 class ViewCard(var x: Detected):  Grouppable(){
     public var overriddenName: String? = null
-
-    public var classificationStat = HashMap<String, CategoryStat>()
-    // corrections by adhoc algorithm
-    public var colorCorrection: CardColor? = null
 
     public var bounds = x.getBoundingBox()
     public var prevBounds: RectF? = null
@@ -87,7 +78,10 @@ class ViewCard(var x: Detected):  Grouppable(){
     public var detectedTime = SystemClock.uptimeMillis()
     public var detectedCategories = x.getCategories()?: LinkedList<Category>()
     public var classifiedTime = SystemClock.uptimeMillis()
-    public var classifiedCategories: MutableList<Category> = LinkedList<Category>()
+    //public var classifiedCategories: MutableList<Category> = LinkedList<Category>()
+    //public var classificationStat = HashMap<String, CategoryStat>()
+
+    public var classificationMax = Array<Category?>(4, {null})
 
     // groups defines the color it will be shown
     public var groups = HashSet<Int>()
@@ -100,6 +94,7 @@ class ViewCard(var x: Detected):  Grouppable(){
         if (cats != null && cats.size > 0) {
             return cats[0].label
         }
+
         return ""
     }
 
@@ -162,52 +157,74 @@ class ViewCard(var x: Detected):  Grouppable(){
                 SystemClock.uptimeMillis() - classifiedTime < 2000
     }
 
-    fun updateClassification(newCategories: MutableList<Category>) {
-        classifiedCategories = newCategories
+    fun updateClassifications(newCategories: Array<MutableList<Category>>?) {
+        //assert(false) // TBD
+//        if (newCategories != null && newCategories.size >SetgameDetectorHelper.SHAPE_CLASSIFIER)
+//        updateClassification(newCategories[SetgameDetectorHelper.COLOR_CLASSIFIER])
+        if (newCategories == null)
+            return
 
-        for (cat in classifiedCategories) {
-            var stat = classificationStat[cat.label]
-            var curScore = cat.score
-            if (stat != null) {
-                if (stat.scoreMax < cat.score) {
-                    stat.scoreMax = cat.score
-                }
-                curScore = stat.scoreMax
-            }else {
-                classificationStat[cat.label] = CategoryStat(cat.score)
-            }
+        assert(newCategories.size == classificationMax.size)
+        for (i in 0 until classificationMax.size) {
+            if (newCategories[i].size == 0)
+                continue
+            val newCat = newCategories[i][0]
+            if (classificationMax[i] == null || classificationMax[i]!!.score <= newCat.score)
+                classificationMax[i] = newCat
+
         }
 
-        classifiedTime = SystemClock.uptimeMillis()
     }
+//    fun updateClassification(newCategories: MutableList<Category>) {
+//        classifiedCategories = newCategories
+//
+//        for (cat in classifiedCategories) {
+//            var stat = classificationStat[cat.label]
+//            var curScore = cat.score
+//            if (stat != null) {
+//                if (stat.scoreMax < cat.score) {
+//                    stat.scoreMax = cat.score
+//                }
+//                curScore = stat.scoreMax
+//            }else {
+//                classificationStat[cat.label] = CategoryStat(cat.score)
+//            }
+//        }
+//
+//        classifiedTime = SystemClock.uptimeMillis()
+//    }
 
-    fun updateCorrections(color: CardColor?) {
-        // TODO: maybe add timer
-        //if (color != null) {
-            colorCorrection = color
-        //}
-    }
+//    fun getAccumulatedClassifications(): MutableList<Category>? {
+//        if (classifiedCategories == null && classifiedCategories.size == 0)
+//            return null
+//
+//        var res = LinkedList<Category>()
+//        for (cat in classificationStat.keys){
+//            res.add(Category(cat, classificationStat[cat]!!.scoreMax))
+//        }
+//        res.sortByDescending { it.score }
+//
+//        return res
+//    }
 
     fun getAccumulatedClassifications(): MutableList<Category>? {
-        if (classifiedCategories == null && classifiedCategories.size == 0)
-            return null
-
-        var res = LinkedList<Category>()
-        for (cat in classificationStat.keys){
-            res.add(Category(cat, classificationStat[cat]!!.scoreMax))
+        if (classificationMax[0]!= null &&
+                classificationMax[1]!= null &&
+                classificationMax[2]!= null &&
+                classificationMax[3]!= null) {
+            var res = LinkedList<Category>()
+            res.add(Category(
+                    classificationMax[0]!!.label + "-" +
+                            classificationMax[1]!!.label + "-" +
+                            classificationMax[2]!!.label + "-" +
+                            classificationMax[3]!!.label,
+                    classificationMax[0]!!.score *
+                            classificationMax[1]!!.score *
+                            classificationMax[2]!!.score *
+                            classificationMax[3]!!.score))
+            return res
         }
-        res.sortByDescending { it.score }
-
-        // update the first element with corrections
-        if (colorCorrection != null && res.size > 0) {
-            var crd = cardFromString(res[0].label)
-            if (crd != null) {
-                crd.cardColor = colorCorrection!!
-                res[0] = Category(cardToString(crd),  -1.0f * res[0].score  /*mark that there was correction*/)
-            }
-        }
-
-        return res
+        return null
     }
 
     fun isReClassifyCandidate(): Boolean {
@@ -257,8 +274,6 @@ class ResultCard(val x: ViewCard):  Grouppable() {
     }
 }
 
-data class classificationWithCorrection(val classifications: MutableList<Category>, val color: CardColor?)
-
 class SetgameDetectorHelper(
     var scanEnabled: Boolean = false,
     var nonOverlappingSolutionMode: Boolean = false,
@@ -274,19 +289,21 @@ class SetgameDetectorHelper(
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
     // will not change, a lazy val would be preferable.
     private var objectDetector: ObjectDetector? = null
-    private var imageClassifier: ImageClassifier? = null
+    private var imageClassifiers: Array<ImageClassifier?> =Array<ImageClassifier?>(4, {null})
 
     // we're keeping cards so the they can be traced and overridden
     private var cards = LinkedList<ViewCard>()
 
     init {
         setupObjectDetector()
-        setupImageClassifier()
+        for (i in 0 until imageClassifiers.size)
+            setupImageClassifier(i)
     }
 
     fun clearObjectDetector() {
         objectDetector = null
-        imageClassifier = null
+        for (i in 0 until imageClassifiers.size)
+            imageClassifiers[i] = null
     }
 
     fun clearCards() {
@@ -346,10 +363,10 @@ class SetgameDetectorHelper(
         }
     }
 
-    private fun setupImageClassifier() {
+    private fun setupImageClassifier(i: Int) {
         val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
-                .setScoreThreshold(0.1f/*threshold*/)
-                .setMaxResults(maxResults)
+                .setScoreThreshold(0.1f)
+                .setMaxResults(3)
 
         val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
 
@@ -372,13 +389,16 @@ class SetgameDetectorHelper(
         optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
 
         val modelName =
-                when (currentModel) {
-                    MODEL_SETGAME -> "setgame-classify.tflite"
+                when (i) {
+                    COUNT_CLASSIFIER -> "setgame-classify-count.tflite"
+                    COLOR_CLASSIFIER -> "setgame-classify-color.tflite"
+                    FILL_CLASSIFIER -> "setgame-classify-fill.tflite"
+                    SHAPE_CLASSIFIER -> "setgame-classify-shape.tflite"
                     else -> "setgame-classify.tflite"
                 }
 
         try {
-            imageClassifier =
+            imageClassifiers[i] =
                     ImageClassifier.createFromFileAndOptions(context, modelName, optionsBuilder.build())
         } catch (e: IllegalStateException) {
             objectDetectorListener?.onError(
@@ -402,9 +422,9 @@ class SetgameDetectorHelper(
                 return ImageProcessingOptions.Orientation.RIGHT_TOP
         }
     }
-    fun classifyImage(image: Bitmap, rotation: Int): List<Classifications>? {
-        if (imageClassifier == null) {
-            setupImageClassifier()
+    fun classifyImage(i: Int, image: Bitmap, rotation: Int): List<Classifications>? {
+        if (imageClassifiers[i] == null) {
+            setupImageClassifier(i)
         }
         // Create preprocessor for the image.
         // See https://www.tensorflow.org/lite/inference_with_metadata/
@@ -420,13 +440,13 @@ class SetgameDetectorHelper(
                 .setOrientation(getOrientationFromRotation(rotation))
                 .build()
 
-        return imageClassifier?.classify(tensorImage, imageProcessingOptions)
+        return imageClassifiers[i]?.classify(tensorImage, imageProcessingOptions)
     }
 
     // Mutable buffers for fun classify
     private var buffer: Bitmap = Bitmap.createBitmap(1000, 1000, Bitmap.Config.ARGB_8888)
     private var pixels = IntArray(1000 * 1000);
-    fun classify(image: Bitmap, imageRotation: Int, border: RectF): classificationWithCorrection? {
+    fun classify(image: Bitmap, imageRotation: Int, border: RectF): Array<MutableList<Category>>? {
         var top = border.top.toInt()
         var bottom = border.bottom.toInt()
         var left = border.left.toInt()
@@ -513,28 +533,21 @@ class SetgameDetectorHelper(
                 width,
                 height)
 
-        var clr = null
-
         buffer.setPixels(pixels, 0,width,0,0,
                 width,
                 height)
 
-        val res = classifyImage(buffer, classificationRotation)
+        var r = Array<MutableList<Category>>(imageClassifiers.size, { LinkedList<Category>() })
+        for (i in 0 until imageClassifiers.size) {
+            val res = classifyImage(i, buffer, classificationRotation)
 
-        res?.let { it ->
-            if (it.isNotEmpty()) {
-                //compare clr
-                if (clr != null && it[0].categories.size > 0){
-                    val crd = cardFromString(it[0].categories[0].label)
-                    if (crd != null && crd.cardColor == clr) {
-                        // we don't need correction - make it null
-                        clr = null
-                    }
+            res?.let { it ->
+                if (it.isNotEmpty()) {
+                    r[i] = it[0].categories
                 }
-                return classificationWithCorrection(it[0].categories, clr)
             }
         }
-        return null
+        return r
     }
 
     fun detect(image: Bitmap, imageRotation: Int) {
@@ -629,8 +642,7 @@ class SetgameDetectorHelper(
                 continue
             var res = classify(image, imageRotation, card.getBoundingBox())
             if (res != null) {
-                card.updateClassification(res.classifications)
-                card.updateCorrections(res.color)
+                card.updateClassifications(res)
             }
             reclassifiedCounter++
             if (reclassifiedCounter > 5)
@@ -640,10 +652,9 @@ class SetgameDetectorHelper(
         // classify the newly appeared cards in newDet and add the to newCards
         for (det in newDet) {
             var res = classify(image, imageRotation, det.getBoundingBox())
-            if (res != null) {
+            if (res != null/*&& res.classifications.size > 0 */) {
                 var card = ViewCard(det)
-                card.updateClassification(res.classifications)
-                card.updateCorrections(res.color)
+                card.updateClassifications(res)
                 newCards.add(card)
             }
         }
@@ -666,9 +677,8 @@ class SetgameDetectorHelper(
             for (card in cards) {
                 card.applyBoundsTransformation(t!!)
                 var res = classify(image, imageRotation, card.getBoundingBox())
-                if (res != null && res.classifications.size > 0){
-                    card.updateClassification(res.classifications)
-                    card.updateCorrections(res.color)
+                if (res != null && res[SHAPE_CLASSIFIER].size > 0){
+                    card.updateClassifications(res)
                     reDetectedCards.add(card)
                 }else {
                     if (!card.isDetectionOutdated()){
@@ -757,6 +767,10 @@ class SetgameDetectorHelper(
         const val MODEL_SETGAME = 0
         const val MODEL_SETGAME_DBG = 1
         const val MODEL_MOBILENETV1 = 2
+        const val COUNT_CLASSIFIER = 0
+        const val COLOR_CLASSIFIER = 1
+        const val FILL_CLASSIFIER = 2
+        const val SHAPE_CLASSIFIER = 3
     }
 }
 

@@ -1,0 +1,12 @@
+task copyTestModel(type: Copy) {
+    from project.ext.ASSET_DIR + '/mobilenetv1.tflite'
+    into project.ext.TEST_ASSETS_DIR
+}
+
+task copyTestSetGameModel(type: Copy) {
+    from project.ext.ASSET_DIR
+    include 'setgame-*.tflite'
+    into project.ext.TEST_ASSETS_DIR
+}
+
+preBuild.dependsOn copyTestModel, copyTestSetGameModel

@@ -21,12 +21,12 @@ apply plugin: "androidx.navigation.safeargs"
 apply plugin: 'de.undercouch.download'
 
 android {
-    compileSdkVersion 32
+    compileSdkVersion 33
     defaultConfig {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         applicationId "org.tensorflow.lite.examples.objectdetection"
         minSdkVersion 21
-        targetSdkVersion 32
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0.0"
     }
@@ -94,7 +94,7 @@ dependencies {
     implementation "androidx.navigation:navigation-ui-ktx:$nav_version"
 
     // CameraX core library
-    def camerax_version = '1.1.0-beta03'
+    def camerax_version = '1.2.0'
     implementation "androidx.camera:camera-core:$camerax_version"
 
     // CameraX Camera2 extensions

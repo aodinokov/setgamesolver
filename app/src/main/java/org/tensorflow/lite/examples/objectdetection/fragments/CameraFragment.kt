@@ -248,10 +248,38 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         )
     }
 
+    fun getAvailableResolutions(cameraManager: CameraManager): List<Size> {
+        // Get the list of camera IDs.
+        val cameraIds = cameraManager.cameraIdList
+
+        // Create a list to store the available resolutions.
+        val availableResolutions = mutableListOf<Size>()
+
+        // For each camera ID, get the CameraCharacteristics object.
+        for (cameraId in cameraIds) {
+
+            // Get the CameraCharacteristics object.
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+
+            // Get the SCALER_STREAM_CONFIGURATION_MAP from the CameraCharacteristics object.
+            val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+
+            // Get the list of output sizes from the SCALER_STREAM_CONFIGURATION_MAP object.
+            val outputSizes = map?.getOutputSizes(SurfaceTexture::class.java)
+
+            // Add the output sizes to the list of available resolutions.
+            outputSizes?.forEach { availableResolutions.add(it) }
+        }
+
+        // Return the list of available resolutions.
+        return availableResolutions
+    }
+
     // Declare and bind preview, capture and analysis use cases
     @SuppressLint("UnsafeOptInUsageError")
     private fun bindCameraUseCases() {
 
+        getAvailableResolutions(context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager)
 //        val cameraManager =  context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
 //        for (cameraId in cameraManager.cameraIdList){
 //            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
@@ -264,16 +292,21 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         val cameraProvider =
             cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
 
+        val availableCameraInfos = cameraProvider.getAvailableCameraInfos();
+
+
         // CameraSelector - makes assumption that we're only using the back camera
-        val cameraSelector =
-            CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
+        val cameraSelector = //availableCameraInfos.get(2).cameraSelector
+            CameraSelector.Builder()
+                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                    .build()
 
         // Preview. Only using the 4:3 ratio because this is the closest to our models
         preview =
             Preview.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 //.setTargetResolution(Size(1024, 768))
-                    .setTargetResolution(Size(1088, 1088))
+                    .setTargetResolution(Size(2992, 2992 ))
                     //.setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .build()
@@ -283,7 +316,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             ImageAnalysis.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 //.setTargetResolution(Size(1024, 768))
-                    .setTargetResolution(Size(1088, 1088))
+                    .setTargetResolution(Size( 2992, 2992))
 
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -296,8 +329,9 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                             // The image rotation and RGB image buffer are initialized only once
                             // the analyzer has started running
                             bitmapBuffer = Bitmap.createBitmap(
-                              image.width,
-                              image.height,
+                                    //image.width+16,
+                                    image.planes[0].rowStride/image.planes[0].pixelStride,
+                                    image.height,
                               Bitmap.Config.ARGB_8888
                             )
                         }
@@ -323,7 +357,9 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
     private fun detectObjects(image: ImageProxy) {
         // Copy out RGB bits to the shared bitmap buffer
-        image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
+        //image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
+        image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer.asShortBuffer()) }
+
 
         val imageRotation = image.imageInfo.rotationDegrees
         // Pass Bitmap and rotation to the object detector helper for processing and detection

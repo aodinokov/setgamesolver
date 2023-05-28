@@ -306,7 +306,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             Preview.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 //.setTargetResolution(Size(1024, 768))
-                    .setTargetResolution(Size(2992, 2992 ))
+                    .setTargetResolution(Size(1440, 1920 ))
                     //.setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .build()
@@ -316,7 +316,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             ImageAnalysis.Builder()
                 //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 //.setTargetResolution(Size(1024, 768))
-                    .setTargetResolution(Size( 2992, 2992))
+                    .setTargetResolution(Size( 1440, 1920))
 
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)

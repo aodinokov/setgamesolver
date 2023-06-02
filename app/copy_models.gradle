@@ -9,4 +9,10 @@ task copyTestSetGameModel(type: Copy) {
     into project.ext.TEST_ASSETS_DIR
 }
 
-preBuild.dependsOn copyTestModel, copyTestSetGameModel
+task copyTestSetGameAdhoc(type: Copy) {
+    from project.ext.ASSET_DIR
+    include 'setgame-*.json'
+    into project.ext.TEST_ASSETS_DIR
+}
+
+preBuild.dependsOn copyTestModel, copyTestSetGameModel, copyTestSetGameAdhoc

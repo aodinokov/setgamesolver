@@ -17,10 +17,12 @@ package org.tensorflow.lite.examples.objectdetection
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.RectF
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
+import com.google.gson.Gson
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
@@ -32,6 +34,10 @@ import org.tensorflow.lite.task.vision.classifier.Classifications
 import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.lang.Double.max
+import java.lang.Double.min
 import java.util.*
 import kotlin.collections.HashMap
 import kotlin.math.absoluteValue
@@ -290,6 +296,7 @@ class SetgameDetectorHelper(
     // will not change, a lazy val would be preferable.
     private var objectDetector: ObjectDetector? = null
     private var imageClassifiers: Array<ImageClassifier?> =Array<ImageClassifier?>(4, {null})
+    private var adhocColorClassifierColormap: Array<Array<Array<Int>>>? = null
 
     // we're keeping cards so the they can be traced and overridden
     private var cards = LinkedList<ViewCard>()
@@ -539,6 +546,8 @@ class SetgameDetectorHelper(
 
         var r = Array<MutableList<Category>>(imageClassifiers.size, { LinkedList<Category>() })
         for (i in 0 until imageClassifiers.size) {
+            if (i == COLOR_CLASSIFIER)
+                continue /*skip for now*/
             val res = classifyImage(i, buffer, classificationRotation)
 
             res?.let { it ->
@@ -547,6 +556,110 @@ class SetgameDetectorHelper(
                 }
             }
         }
+
+        // if shape and fill are classified with good probability - good time to do adhoc
+        if (    r[SHAPE_CLASSIFIER].size > 0 &&
+                r[FILL_CLASSIFIER].size > 0) {
+            r[COLOR_CLASSIFIER] = adhocCardColorGuess(buffer, pixels)
+        }
+
+        return r
+    }
+
+    /* R = 4, G= 2, P = 1*/
+    fun getColorFlagsByPixel(pixel: Int): Int {
+        //lazy init
+        if (adhocColorClassifierColormap == null) {
+            // Open the JSON file.
+            val inputStream = context.assets.open("setgame-classify-color.json")
+            // Create a buffered reader.
+            val bufferedReader = BufferedReader(InputStreamReader(inputStream))
+            // Read the JSON file.
+            val jsonString = bufferedReader.use { it.readText() }
+            // Create a Gson object.
+            val gson = Gson()
+            adhocColorClassifierColormap = gson.fromJson(jsonString, Array<Array<Array<Int>>>::class.java)
+        }
+        if (adhocColorClassifierColormap == null)
+            return 0
+
+        val r = Color.red(pixel)/256.0
+        val g = Color.green(pixel)/256.0
+        val b = Color.blue(pixel)/256.0
+
+        var h = 0
+        var s = 0.0
+        var v = 0.0
+
+        val mx = max(r,max(g,b))
+        val mn = min(r, min(g,b))
+        val df = mx - mn
+        if (df != 0.0) {
+            if (mx == r) {
+                h = (60.0 * ((g - b) / df) + 360.0).toInt() % 360
+            } else if (mx == g) {
+                h = (60.0 * ((b - r) / df) + 120.0).toInt() % 360
+            } else {
+                h = (60.0 * ((r - g) / df) + 240.0).toInt() % 360
+            }
+        }
+        if (mx != 0.0) {
+            s = df/ mx
+        }
+        v = mx
+
+        var shift = 0
+        if ((h/5)%2 == 0) {
+            shift = 4
+        }
+        return adhocColorClassifierColormap!![(v*100).toInt()][(s*100).toInt()][h/10].shl(shift) and 0x0f
+    }
+
+    fun adhocCardColorGuess(buffer: Bitmap, pixels: IntArray): LinkedList<Category> {
+        var rc = 0
+        var rg = 0
+        var rp = 0
+        var tc = 0
+
+        if (buffer.height > buffer.width) {
+            // go vertically
+            for (x in buffer.width.toInt()/2 -3 until buffer.width.toInt()/2 + 3)
+                for (y in 1*buffer.height.toInt()/4 until 3*buffer.height.toInt()/4) {
+                    tc +=1
+                    val px = pixels[y*buffer.width.toInt() + x]
+                    val flags = getColorFlagsByPixel(px)
+                    if (flags and 0x4 != 0)
+                        rc += 1
+                    if (flags and 0x2 != 0)
+                        rg += 1
+                    if (flags and 0x1 != 0)
+                        rp += 1
+                }
+        }else {
+            // go horizontally
+            for (y in buffer.height.toInt()/2 -3 until buffer.height.toInt()/2 + 3)
+                for (x in 1*buffer.width.toInt()/4 until 3*buffer.width.toInt()/4) {
+                    tc +=1
+                    val px = pixels[y*buffer.width.toInt() + x]
+                    val flags = getColorFlagsByPixel(px)
+                    if (flags and 0x4 != 0)
+                        rc += 1
+                    if (flags and 0x2 != 0)
+                        rg += 1
+                    if (flags and 0x1 != 0)
+                        rp += 1
+                }
+        }
+        if (tc == 0)
+            return  LinkedList<Category>()
+
+        var r = LinkedList<Category>()
+        r.add(Category("red", rc.toFloat()/tc.toFloat()))
+        r.add(Category("green", rg.toFloat()/tc.toFloat()))
+        r.add(Category("purple", rp.toFloat()/tc.toFloat()))
+
+        r.sortByDescending { it.score }
+
         return r
     }
 

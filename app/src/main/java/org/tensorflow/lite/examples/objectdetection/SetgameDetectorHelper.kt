@@ -561,12 +561,16 @@ class SetgameDetectorHelper(
         if (    r[SHAPE_CLASSIFIER].size > 0 &&
                 r[FILL_CLASSIFIER].size > 0) {
             r[COLOR_CLASSIFIER] = adhocCardColorGuess(buffer, pixels)
+//            //dbg
+//            buffer.setPixels(pixels, 0,width,0,0,
+//                    width,
+//                    height)
         }
 
         return r
     }
 
-    /* R = 4, G= 2, P = 1*/
+    /* color per bit: R = 4, G= 2, P = 1*/
     fun getColorFlagsByPixel(pixel: Int): Int {
         //lazy init
         if (adhocColorClassifierColormap == null) {
@@ -634,6 +638,8 @@ class SetgameDetectorHelper(
                         rg += 1
                     if (flags and 0x1 != 0)
                         rp += 1
+//                    //dbg
+//                    pixels[y*buffer.width.toInt() + x] = Color.WHITE
                 }
         }else {
             // go horizontally
@@ -648,6 +654,8 @@ class SetgameDetectorHelper(
                         rg += 1
                     if (flags and 0x1 != 0)
                         rp += 1
+//                    //dbg
+//                    pixels[y*buffer.width.toInt() + x] = Color.WHITE
                 }
         }
         if (tc == 0)

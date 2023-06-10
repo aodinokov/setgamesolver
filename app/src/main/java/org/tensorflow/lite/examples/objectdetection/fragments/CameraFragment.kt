@@ -357,8 +357,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
     private fun detectObjects(image: ImageProxy) {
         // Copy out RGB bits to the shared bitmap buffer
-        //image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
-        image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer.asShortBuffer()) }
+        image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
 
 
         val imageRotation = image.imageInfo.rotationDegrees

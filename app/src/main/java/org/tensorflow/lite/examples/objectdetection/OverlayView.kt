@@ -78,8 +78,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         for (i in 0 until colors.length()) {
             var p = Paint()
             p.color = colors.getColor(i, 0)
-            p.strokeWidth = boxPaint.strokeWidth
-            p.style = boxPaint.style
+            p.strokeWidth = 8F
+            p.style = Paint.Style.STROKE
             groupBoxPaintMap[i] = p
         }
 

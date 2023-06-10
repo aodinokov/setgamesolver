@@ -28,11 +28,11 @@
     <!-- Cards grouping coloring -->
     <array name="groupColors">
         <item>#FFFF0000</item>
-        <item>#FF7F00</item>
         <item>#FFFF00</item>
-        <item>#FF00FF00</item>
         <item>#00FFFF</item>
-        <item>#FF0000FF</item>
         <item>#7F00FF</item>
+        <item>#FF7F00</item>
+        <item>#FF00FF00</item>
+        <item>#FF0000FF</item>
     </array>
 </resources>

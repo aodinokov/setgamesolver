@@ -33,10 +33,10 @@
     <string name="label_startstop_btn_start">Start</string>
     <string name="label_startstop_btn_stop">Stop</string>
 
-    <string name="label_interence_time">Inference Time</string>
-    <string name="label_fps">Frames per Second</string>
-    <string name="label_confidence_threshold">Threshold</string>
-    <string name="label_expected_results_num">Expected obj num</string>
+    <string name="label_modes">Mode</string>
+    <string name="label_det_confidence_threshold">Det threshold</string>
+    <string name="label_det_expected_results_num">Det expected obj num</string>
+    <string name="label_class_confidence_threshold">Class threshold</string>
     <string name="label_threads">Number of Threads</string>
     <string name="label_delegate">Delegate</string>
     <string name="label_models">ML Model</string>
@@ -51,5 +51,9 @@
         <item>SetGame</item>
         <item>SetGame debug</item>
         <item>MobileNet V1</item>
+    </string-array>
+    <string-array name="modes_spinner_titles">
+        <item>All sets</item>
+        <item>Max non-overlapping sets</item>
     </string-array>
 </resources>

@@ -19,11 +19,9 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
-import android.hardware.camera2.params.StreamConfigurationMap
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
@@ -43,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import org.tensorflow.lite.examples.objectdetection.Detected
+import org.tensorflow.lite.examples.objectdetection.DetectorMode
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
@@ -120,37 +119,74 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     }
 
     private fun initBottomSheetControls() {
+
+        // When clicked, change the underlying model used for object detection
+        fragmentCameraBinding.bottomSheetLayout.spinnerMode.setSelection(0, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerMode.onItemSelectedListener =
+                object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
+                        setgameDetectorHelper.detectorMode =
+                                when (p2) {
+                                    0 -> DetectorMode.AllSets
+                                    1 -> DetectorMode.NonOverlappingSets
+                                    else -> DetectorMode.AllSets
+                                }
+                        updateControlsUi()
+                    }
+
+                    override fun onNothingSelected(p0: AdapterView<*>?) {
+                        /* no op */
+                    }
+                }
+
+
         // When clicked, lower detection score threshold floor
-        fragmentCameraBinding.bottomSheetLayout.thresholdMinus.setOnClickListener {
-            if (setgameDetectorHelper.threshold >= 0.1) {
-                setgameDetectorHelper.threshold -= 0.1f
+        fragmentCameraBinding.bottomSheetLayout.detThresholdMinus.setOnClickListener {
+            if (setgameDetectorHelper.detThreshold >= 0.1) {
+                setgameDetectorHelper.detThreshold -= 0.1f
                 updateControlsUi()
             }
         }
 
         // When clicked, raise detection score threshold floor
-        fragmentCameraBinding.bottomSheetLayout.thresholdPlus.setOnClickListener {
-            if (setgameDetectorHelper.threshold <= 0.8) {
-                setgameDetectorHelper.threshold += 0.1f
+        fragmentCameraBinding.bottomSheetLayout.detThresholdPlus.setOnClickListener {
+            if (setgameDetectorHelper.detThreshold <= 0.8) {
+                setgameDetectorHelper.detThreshold += 0.1f
                 updateControlsUi()
             }
         }
 
         // When clicked, reduce the number of objects that can be detected at a time
-        fragmentCameraBinding.bottomSheetLayout.maxResultsMinus.setOnClickListener {
-            if (setgameDetectorHelper.maxResults > 1) {
-                setgameDetectorHelper.maxResults--
+        fragmentCameraBinding.bottomSheetLayout.detMaxResultsMinus.setOnClickListener {
+            if (setgameDetectorHelper.detMaxResults > 1) {
+                setgameDetectorHelper.detMaxResults--
                 updateControlsUi()
             }
         }
 
         // When clicked, increase the number of objects that can be detected at a time
-        fragmentCameraBinding.bottomSheetLayout.maxResultsPlus.setOnClickListener {
-            if (setgameDetectorHelper.maxResults < 32) {
-                setgameDetectorHelper.maxResults++
+        fragmentCameraBinding.bottomSheetLayout.detMaxResultsPlus.setOnClickListener {
+            if (setgameDetectorHelper.detMaxResults < 32) {
+                setgameDetectorHelper.detMaxResults++
                 updateControlsUi()
             }
         }
+
+        fragmentCameraBinding.bottomSheetLayout.classThresholdMinus.setOnClickListener {
+            if (setgameDetectorHelper.classThreshold >= 0.1) {
+                setgameDetectorHelper.classThreshold -= 0.1f
+                updateControlsUi()
+            }
+        }
+
+        // When clicked, raise detection score threshold floor
+        fragmentCameraBinding.bottomSheetLayout.classThresholdPlus.setOnClickListener {
+            if (setgameDetectorHelper.classThreshold <= 0.8) {
+                setgameDetectorHelper.classThreshold += 0.1f
+                updateControlsUi()
+            }
+        }
+
 
         // When clicked, decrease the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsMinus.setOnClickListener {
@@ -200,11 +236,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.button.setOnClickListener {
             /* update button*/
             setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
-
-            if (!setgameDetectorHelper.scanEnabled) {
-                fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
-                    "n/a"
-            }
             setgameDetectorHelper.clearCards()
             updateControlsUi()
         }
@@ -212,10 +243,12 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
     // Update the values displayed in the bottom sheet. Reset detector.
     private fun updateControlsUi() {
-        fragmentCameraBinding.bottomSheetLayout.maxResultsValue.text =
-            setgameDetectorHelper.maxResults.toString()
-        fragmentCameraBinding.bottomSheetLayout.thresholdValue.text =
-            String.format("%.2f", setgameDetectorHelper.threshold)
+        fragmentCameraBinding.bottomSheetLayout.detMaxResultsValue.text =
+            setgameDetectorHelper.detMaxResults.toString()
+        fragmentCameraBinding.bottomSheetLayout.detThresholdValue.text =
+            String.format("%.2f", setgameDetectorHelper.detThreshold)
+        fragmentCameraBinding.bottomSheetLayout.classThresholdValue.text =
+                String.format("%.2f", setgameDetectorHelper.classThreshold)
         fragmentCameraBinding.bottomSheetLayout.threadsValue.text =
             setgameDetectorHelper.numThreads.toString()
 
@@ -356,6 +389,9 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     }
 
     private fun detectObjects(image: ImageProxy) {
+//        if(!setgameDetectorHelper.scanEnabled)
+//            return
+
         // Copy out RGB bits to the shared bitmap buffer
         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
 
@@ -384,14 +420,13 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         }
 
         activity?.runOnUiThread {
-            fragmentCameraBinding.bottomSheetLayout.inferenceTimeVal.text =
-                            String.format("%d ms", inferenceTime)
 
             // Pass necessary information to OverlayView for drawing on the canvas
             fragmentCameraBinding.overlay.setResults(
                 results ?: LinkedList<Detected>(),
-                imageHeight,
-                imageWidth
+                    inferenceTime,
+                    imageHeight,
+                    imageWidth
             )
 
             // Force a redraw

@@ -280,16 +280,22 @@ class ResultCard(val x: ViewCard):  Grouppable() {
     }
 }
 
+enum class DetectorMode(val mode: Int) {
+    AllSets(0),
+    NonOverlappingSets(1),
+}
+
 class SetgameDetectorHelper(
-    var scanEnabled: Boolean = false,
-    var nonOverlappingSolutionMode: Boolean = false,
-    var threshold: Float = 0.5f,
-    var numThreads: Int = 2,
-    var maxResults: Int = 20,
-    var currentDelegate: Int = 0,
-    var currentModel: Int = 0,
-    val context: Context,
-    val objectDetectorListener: DetectorListener?
+        var scanEnabled: Boolean = false,
+        var detectorMode: DetectorMode = DetectorMode.AllSets,
+        var detThreshold: Float = 0.5f,
+        var detMaxResults: Int = 30,
+        var classThreshold: Float = 0.1f,
+        var numThreads: Int = 2,
+        var currentDelegate: Int = 0,
+        var currentModel: Int = 0,
+        val context: Context,
+        val objectDetectorListener: DetectorListener?
 ) {
 
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
@@ -326,8 +332,8 @@ class SetgameDetectorHelper(
         // Create the base options for the detector using specifies max results and score threshold
         val optionsBuilder =
             ObjectDetector.ObjectDetectorOptions.builder()
-                .setScoreThreshold(threshold)
-                .setMaxResults(maxResults)
+                .setScoreThreshold(detThreshold)
+                .setMaxResults(detMaxResults)
 
         // Set general detection options, including number of used threads
         val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
@@ -372,7 +378,7 @@ class SetgameDetectorHelper(
 
     private fun setupImageClassifier(i: Int) {
         val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
-                .setScoreThreshold(0.1f)
+                .setScoreThreshold(classThreshold)
                 .setMaxResults(3)
 
         val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
@@ -632,6 +638,8 @@ class SetgameDetectorHelper(
                     tc +=1
                     val px = pixels[y*buffer.width.toInt() + x]
                     val flags = getColorFlagsByPixel(px)
+                    if (flags != 1 && flags != 2 && flags != 4)
+                        continue
                     if (flags and 0x4 != 0)
                         rc += 1
                     if (flags and 0x2 != 0)
@@ -648,6 +656,8 @@ class SetgameDetectorHelper(
                     tc +=1
                     val px = pixels[y*buffer.width.toInt() + x]
                     val flags = getColorFlagsByPixel(px)
+                    if (flags != 1 && flags != 2 && flags != 4)
+                        continue
                     if (flags and 0x4 != 0)
                         rc += 1
                     if (flags and 0x2 != 0)
@@ -834,7 +844,7 @@ class SetgameDetectorHelper(
         }
 
         // mode 1
-        if (!nonOverlappingSolutionMode) {
+        if (detectorMode == DetectorMode.AllSets) {
             // TODO: how to keep the same group from scan to scan?
             var groupId = 0
             for (g in solutions) {

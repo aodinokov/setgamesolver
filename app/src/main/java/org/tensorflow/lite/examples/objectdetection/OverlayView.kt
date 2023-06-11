@@ -34,6 +34,8 @@ import kotlin.math.max
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
     private var showDetections: Boolean = false
+
+    private var inferenceTime: Long = 0
     private var results: List<Detected> = LinkedList<Detected>()
     private var boxPaint = Paint()
     private var textBackgroundPaint = Paint()
@@ -97,6 +99,28 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         if (!showDetections)
             return
 
+        // show fps
+        val fpsTop = 0f
+        var fpsText = "fps:inf"
+        if (inferenceTime > 0) {
+            // inferenceTime is in ms
+            fpsText = String.format("fps:%2.0f", 1000.0/inferenceTime.toFloat())
+        }
+        // Draw rect behind display text
+        textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
+        val textWidth = bounds.width()
+        val textHeight = bounds.height()
+        canvas.drawRect(
+                0f,
+                fpsTop,
+                0f + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                fpsTop + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                textBackgroundPaint
+        )
+        // Draw text for detected object
+        canvas.drawText(fpsText, 0f, fpsTop+bounds.height(), textPaint)
+
+        //show results
         for (result in results) {
             val boundingBox = result.getBoundingBox()
 
@@ -178,9 +202,11 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     fun setResults(
       detectionResults: MutableList<Detected>,
+      detectionInferenceTime: Long,
       imageHeight: Int,
       imageWidth: Int,
     ) {
+        inferenceTime = detectionInferenceTime
         results = detectionResults
 
         // PreviewView is in FILL_START mode. So we need to scale up the bounding box to match with

@@ -15,11 +15,12 @@
  */
 package org.tensorflow.lite.examples.objectdetection
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.RectF
 import android.os.SystemClock
+import android.preference.PreferenceManager
+import android.content.Context
 import android.util.Log
 import android.view.Surface
 import com.google.gson.Gson
@@ -39,8 +40,9 @@ import java.io.InputStreamReader
 import java.lang.Double.max
 import java.lang.Double.min
 import java.util.*
-import kotlin.collections.HashMap
 import kotlin.math.absoluteValue
+
+
 
 /*WA: it was necessary to create our own copy, because we couldn't inherit from Detection */
 abstract class Detected() {
@@ -297,6 +299,75 @@ class SetgameDetectorHelper(
         val context: Context,
         val objectDetectorListener: DetectorListener?
 ) {
+    // read/ write support
+    // add fun UnmarshalV<N>toState(yaml: String)  when needed
+    fun UnmarshalV1toState(jsonString: String) {
+        // Create a Gson object.
+        val gson = Gson()
+        val state = gson.fromJson(jsonString, Map::class.java)
+        if (state != null) {
+            // read to the settings with conversion
+            if (state.containsKey("detectorMode")) {
+                try {
+                    detectorMode = DetectorMode.valueOf(state["detectorMode"].toString())
+                }catch (e: IllegalArgumentException) { }
+            }
+            if (state.containsKey("detectorMode")){
+                detThreshold = state["detThreshold"].toString().toFloat()
+            }
+            if (state.containsKey("detMaxResults")){
+                detMaxResults = state["detMaxResults"].toString().toInt()
+            }
+            if (state.containsKey("classThreshold")){
+                classThreshold = state["classThreshold"].toString().toFloat()
+            }
+            if (state.containsKey("numThreads")){
+                numThreads = state["numThreads"].toString().toInt()
+            }
+            if (state.containsKey("currentDelegate")){
+                currentDelegate = state["currentDelegate"].toString().toInt()
+            }
+            if (state.containsKey("currentModel")){
+                currentModel = state["currentModel"].toString().toInt()
+            }
+        }
+    }
+
+    fun MarshalV1toState(): String {
+        // Create a Gson object.
+        val gson = Gson()
+
+        val state = mutableMapOf<String, String>()
+        state["detectorMode"] = detectorMode.toString()
+        state["detThreshold"] = detThreshold.toString()
+        state["detMaxResults"] = detMaxResults.toString()
+        state["classThreshold"] = classThreshold.toString()
+        state["numThreads"] = numThreads.toString()
+        state["currentDelegate"] = currentDelegate.toString()
+        state["currentModel"] = currentModel.toString()
+        return gson.toJson(state)
+    }
+
+    fun ReadPreferences() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        // Retrieve a string value
+        val configVersion = preferences.getString("config_version", "")
+        val config = preferences.getString("config_json", "")
+        if (config != null) {
+            if (configVersion == "1") {
+                UnmarshalV1toState(config)
+            }
+        }
+    }
+
+    fun WritePreferences() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val editor = preferences.edit()
+        editor.putString("config_version", "1")
+        editor.putString("config_json", MarshalV1toState())
+        editor.apply()
+    }
+
 
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
     // will not change, a lazy val would be preferable.
@@ -308,6 +379,8 @@ class SetgameDetectorHelper(
     private var cards = LinkedList<ViewCard>()
 
     init {
+        ReadPreferences()
+
         setupObjectDetector()
         for (i in 0 until imageClassifiers.size)
             setupImageClassifier(i)

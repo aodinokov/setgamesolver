@@ -116,12 +116,15 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
         // Attach listeners to UI control widgets
         initBottomSheetControls()
+
+        // Reuse the function to set text fields based on the current data
+        updateTextControlsUi()
     }
 
     private fun initBottomSheetControls() {
 
         // When clicked, change the underlying model used for object detection
-        fragmentCameraBinding.bottomSheetLayout.spinnerMode.setSelection(0, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerMode.setSelection(setgameDetectorHelper.detectorMode.mode, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerMode.onItemSelectedListener =
                 object : AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
@@ -131,7 +134,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                                     1 -> DetectorMode.NonOverlappingSets
                                     else -> DetectorMode.AllSets
                                 }
-                        updateControlsUi()
+                        setgameDetectorHelper.WritePreferences()
+                        updateTextControlsUi()
                     }
 
                     override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -144,7 +148,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.detThresholdMinus.setOnClickListener {
             if (setgameDetectorHelper.detThreshold >= 0.1) {
                 setgameDetectorHelper.detThreshold -= 0.1f
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
@@ -152,7 +157,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.detThresholdPlus.setOnClickListener {
             if (setgameDetectorHelper.detThreshold <= 0.8) {
                 setgameDetectorHelper.detThreshold += 0.1f
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
@@ -160,7 +166,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsMinus.setOnClickListener {
             if (setgameDetectorHelper.detMaxResults > 1) {
                 setgameDetectorHelper.detMaxResults--
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
@@ -168,14 +175,16 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsPlus.setOnClickListener {
             if (setgameDetectorHelper.detMaxResults < 32) {
                 setgameDetectorHelper.detMaxResults++
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
         fragmentCameraBinding.bottomSheetLayout.classThresholdMinus.setOnClickListener {
             if (setgameDetectorHelper.classThreshold >= 0.1) {
                 setgameDetectorHelper.classThreshold -= 0.1f
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
@@ -183,7 +192,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.classThresholdPlus.setOnClickListener {
             if (setgameDetectorHelper.classThreshold <= 0.8) {
                 setgameDetectorHelper.classThreshold += 0.1f
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
@@ -192,7 +202,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.threadsMinus.setOnClickListener {
             if (setgameDetectorHelper.numThreads > 1) {
                 setgameDetectorHelper.numThreads--
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
@@ -200,18 +211,20 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         fragmentCameraBinding.bottomSheetLayout.threadsPlus.setOnClickListener {
             if (setgameDetectorHelper.numThreads < 4) {
                 setgameDetectorHelper.numThreads++
-                updateControlsUi()
+                setgameDetectorHelper.WritePreferences()
+                updateTextControlsUi()
             }
         }
 
         // When clicked, change the underlying hardware used for inference. Current options are CPU
         // GPU, and NNAPI
-        fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.setSelection(0, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.setSelection(setgameDetectorHelper.currentDelegate, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
                     setgameDetectorHelper.currentDelegate = p2
-                    updateControlsUi()
+                    setgameDetectorHelper.WritePreferences()
+                    updateTextControlsUi()
                 }
 
                 override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -220,12 +233,13 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             }
 
         // When clicked, change the underlying model used for object detection
-        fragmentCameraBinding.bottomSheetLayout.spinnerModel.setSelection(0, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerModel.setSelection(setgameDetectorHelper.currentModel, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerModel.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
                     setgameDetectorHelper.currentModel = p2
-                    updateControlsUi()
+                    setgameDetectorHelper.WritePreferences()
+                    updateTextControlsUi()
                 }
 
                 override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -237,12 +251,13 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             /* update button*/
             setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
             setgameDetectorHelper.clearCards()
-            updateControlsUi()
+            updateTextControlsUi()
         }
     }
 
     // Update the values displayed in the bottom sheet. Reset detector.
-    private fun updateControlsUi() {
+    private fun updateTextControlsUi() {
+
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsValue.text =
             setgameDetectorHelper.detMaxResults.toString()
         fragmentCameraBinding.bottomSheetLayout.detThresholdValue.text =

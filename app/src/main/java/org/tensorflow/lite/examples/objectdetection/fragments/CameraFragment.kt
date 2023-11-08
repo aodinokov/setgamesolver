@@ -29,6 +29,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -45,10 +46,28 @@ import org.tensorflow.lite.examples.objectdetection.DetectorMode
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
+import java.io.StringBufferInputStream
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+
+class SelectedCamera(    val auto: Boolean = true,
+                         val facing: Int = 0,
+                         val cameraId: String = "",
+                         val stringRepr: String = "") {
+    override fun toString(): String {
+        return stringRepr
+    }
+}
+
+class SelectedCameraResolution(val parent: SelectedCamera,
+                               val size: Size
+){
+    override fun toString(): String {
+        return size.toString()
+    }
+}
 
 class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
@@ -247,6 +266,26 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                 }
             }
 
+        //
+        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        var adapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  BuildCamerasList(cm))
+        fragmentCameraBinding.bottomSheetLayout.spinnerCamera.adapter = adapter
+        fragmentCameraBinding.bottomSheetLayout.spinnerCamera.onItemSelectedListener =
+                object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
+                        val upperAdapter = p0!!.adapter
+                        val camera = upperAdapter.getItem(p2)
+                        // todo: update resolution list
+                        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                        var adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item,  BuildCameraResolutionList(cm, camera as SelectedCamera))
+                        fragmentCameraBinding.bottomSheetLayout.spinnerResolution.adapter = adapter
+
+                    }
+                    override fun onNothingSelected(p0: AdapterView<*>?) {
+                        /* no op */
+                    }
+                }
+
         fragmentCameraBinding.bottomSheetLayout.button.setOnClickListener {
             /* update button*/
             setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
@@ -296,6 +335,95 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         )
     }
 
+    private fun convertFacing(apiFacing: Int): Int {
+        if (apiFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+            return 1
+        } else if (apiFacing == CameraCharacteristics.LENS_FACING_BACK) {
+            return 0
+        } else if (apiFacing == CameraCharacteristics.LENS_FACING_EXTERNAL) {
+            return 2
+        }
+        return -1
+    }
+
+    private fun BuildCamerasList(cameraManager: CameraManager): Array<SelectedCamera> {
+        val cameraIdPerFacing = mutableMapOf<Int, MutableList<String>>()
+        val cameraSelectFacingConst = resources.getStringArray(R.array.camera_select_facing)
+
+        for (facingId in 0 until cameraSelectFacingConst.size) {
+            cameraIdPerFacing[facingId] = mutableListOf<String>()
+        }
+
+        // Get the list of camera IDs.
+        val cameraIds = cameraManager.cameraIdList
+
+        for (cameraId in cameraIds) {
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+            val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
+            cameraIdPerFacing[convertFacing(facing!!)]!!.add(cameraId)
+        }
+
+        val autoConst = resources.getString(R.string.label_camera_auto)
+        val cameras = mutableListOf<SelectedCamera>()
+        for (facingId in 0 until cameraSelectFacingConst.size) {
+            if (cameraIdPerFacing[facingId]!!.size > 0){
+                // add auto
+                cameras.add(SelectedCamera(
+                        auto = true,
+                        facing = facingId,
+                        cameraId = "n/a",
+                        stringRepr = autoConst + " " + cameraSelectFacingConst[facingId]))
+                for (id in 0 until cameraIdPerFacing[facingId]!!.size) {
+                    cameras.add(
+                            SelectedCamera(
+                                    auto = false,
+                                    facing = facingId,
+                                    cameraId = cameraIdPerFacing[facingId]!!.get(id),
+                                    stringRepr = cameraIdPerFacing[facingId]!!.get(id)+ "-"+cameraSelectFacingConst[facingId]))
+                }
+            }
+        }
+
+        return cameras.toTypedArray()
+    }
+
+    private fun BuildCameraResolutionList(cameraManager: CameraManager, camera: SelectedCamera): Array<SelectedCameraResolution> {
+
+        val cameraResolutions = mutableMapOf<String, SelectedCameraResolution>()
+
+        // Get the list of camera IDs.
+        val cameraIds = cameraManager.cameraIdList
+
+        for (cameraId in cameraIds) {
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+            val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
+
+            if (camera.auto && convertFacing(facing!!) != camera.facing)
+                continue
+            if (!camera.auto && camera.cameraId != cameraId)
+                continue
+
+            // Get the SCALER_STREAM_CONFIGURATION_MAP from the CameraCharacteristics object.
+            val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            // Get the list of output sizes from the SCALER_STREAM_CONFIGURATION_MAP object.
+            val outputSizes = map?.getOutputSizes(SurfaceTexture::class.java)
+
+            // merge sizes into cameraResolutions
+            outputSizes?.forEach {
+                cameraResolutions.put(it.toString(), SelectedCameraResolution(
+                    parent = camera,
+                    size = it)) }
+
+        }
+
+        // TODO: add Recommended, Maximum sizes to the front
+        // Recommended is using the 4:3 ratio because this is the closest to our models
+        // the classifier has a resolution 224x224 and typically we have 3 x 4 or 4x4 cards with gaps
+        // that gives us something around 2000-1000x 2000-1000 - no need to have higher resolutions
+        // e.g. 1920x1440 works ok (it's 4:3 - 480 is base)
+        return cameraResolutions.values.toTypedArray()
+    }
+
     fun getAvailableResolutions(cameraManager: CameraManager): List<Size> {
         // Get the list of camera IDs.
         val cameraIds = cameraManager.cameraIdList
@@ -308,6 +436,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
             // Get the CameraCharacteristics object.
             val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+
+            val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
 
             // Get the SCALER_STREAM_CONFIGURATION_MAP from the CameraCharacteristics object.
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)

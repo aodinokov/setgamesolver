@@ -40,6 +40,8 @@
     <string name="label_threads">Number of Threads</string>
     <string name="label_delegate">Delegate</string>
     <string name="label_models">ML Model</string>
+    <string name="label_cameras">Camera</string>
+    <string name="label_resolutions">Resolution</string>
 
     <string-array name="delegate_spinner_titles">
         <item>CPU</item>
@@ -52,8 +54,21 @@
         <item>SetGame debug</item>
         <item>MobileNet V1</item>
     </string-array>
+
     <string-array name="modes_spinner_titles">
         <item>All sets</item>
         <item>Max non-overlapping sets</item>
     </string-array>
+
+    <string name="label_camera_auto">Auto</string>
+    <string name="label_resolution_max">Max</string>
+    <string name="label_resolution_recommended">Recommended</string>
+
+    <!-- don't change the order -->
+    <string-array name="camera_select_facing">
+        <item>Back</item>
+        <item>Front</item>
+        <!--item>External</item-->
+    </string-array>
+
 </resources>

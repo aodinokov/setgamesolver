@@ -16,6 +16,7 @@
 package org.tensorflow.lite.examples.objectdetection.fragments
 
 import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -30,6 +31,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -46,7 +49,6 @@ import org.tensorflow.lite.examples.objectdetection.DetectorMode
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
-import java.io.StringBufferInputStream
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -266,31 +268,55 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                 }
             }
 
-        //
-        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        var adapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  BuildCamerasList(cm))
-        fragmentCameraBinding.bottomSheetLayout.spinnerCamera.adapter = adapter
-        fragmentCameraBinding.bottomSheetLayout.spinnerCamera.onItemSelectedListener =
-                object : AdapterView.OnItemSelectedListener {
-                    override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                        val upperAdapter = p0!!.adapter
-                        val camera = upperAdapter.getItem(p2)
-                        // todo: update resolution list
-                        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                        var adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item,  BuildCameraResolutionList(cm, camera as SelectedCamera))
-                        fragmentCameraBinding.bottomSheetLayout.spinnerResolution.adapter = adapter
 
-                    }
-                    override fun onNothingSelected(p0: AdapterView<*>?) {
-                        /* no op */
-                    }
-                }
-
-        fragmentCameraBinding.bottomSheetLayout.button.setOnClickListener {
+        fragmentCameraBinding.bottomSheetLayout.startstopButton.setOnClickListener {
             /* update button*/
             setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
             setgameDetectorHelper.clearCards()
             updateTextControlsUi()
+        }
+
+        val dialog = Dialog(requireContext())
+        fragmentCameraBinding.bottomSheetLayout.resolutionButton.setOnClickListener {
+            dialog.setContentView(R.layout.resolution_dialog)
+            dialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            dialog.setCancelable(false)
+            //dialog.window!!.attributes.windowAnimations = R.style.animation
+
+            val okay_text = dialog.findViewById<TextView>(R.id.okay_text)
+            val cancel_text = dialog.findViewById<TextView>(R.id.cancel_text)
+
+            okay_text.setOnClickListener(View.OnClickListener {
+                dialog.dismiss()
+                Toast.makeText(requireContext(), "okay clicked", Toast.LENGTH_SHORT).show()
+            })
+
+            cancel_text.setOnClickListener(View.OnClickListener {
+                dialog.dismiss()
+                Toast.makeText(requireContext(), "Cancel clicked", Toast.LENGTH_SHORT).show()
+            })
+
+            val spinner_camera = dialog.findViewById<Spinner>(R.id.spinner_camera)
+            val spinner_resolution = dialog.findViewById<Spinner>(R.id.spinner_resolution)
+            val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            var adapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  BuildCamerasList(cm))
+            spinner_camera.adapter = adapter
+            spinner_camera.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
+                    val upperAdapter = p0!!.adapter
+                    val camera = upperAdapter.getItem(p2)
+                    // update resolution list
+                    val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                    var adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item,  BuildCameraResolutionList(cm, camera as SelectedCamera))
+                    spinner_resolution.adapter = adapter
+
+                }
+                override fun onNothingSelected(p0: AdapterView<*>?) {
+                    /* no op */
+                }
+            }
+            dialog.show()
         }
     }
 
@@ -307,10 +333,10 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             setgameDetectorHelper.numThreads.toString()
 
         if (setgameDetectorHelper.scanEnabled) {
-            fragmentCameraBinding.bottomSheetLayout.button.text =
+            fragmentCameraBinding.bottomSheetLayout.startstopButton.text =
                 getString(R.string.label_startstop_btn_stop)
         } else {
-            fragmentCameraBinding.bottomSheetLayout.button.text =
+            fragmentCameraBinding.bottomSheetLayout.startstopButton.text =
                 getString(R.string.label_startstop_btn_start)
         }
 
@@ -416,7 +442,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
         }
 
-        // TODO: add Recommended, Maximum sizes to the front
+        // TODO: add Recommended, Maximum sizes to the front and sort by h*w from highest to lowest
         // Recommended is using the 4:3 ratio because this is the closest to our models
         // the classifier has a resolution 224x224 and typically we have 3 x 4 or 4x4 cards with gaps
         // that gives us something around 2000-1000x 2000-1000 - no need to have higher resolutions

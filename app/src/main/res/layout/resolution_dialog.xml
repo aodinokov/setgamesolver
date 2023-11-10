@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="10dp">
+
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+    <!-- Camera selection row -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/bottom_sheet_default_row_margin">
+
+        <TextView
+            android:text="@string/label_cameras"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/bottom_sheet_text_size"
+            android:textColor="@color/bottom_sheet_text_color" />
+
+        <androidx.appcompat.widget.AppCompatSpinner
+            android:id="@+id/spinner_camera"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="@dimen/resolution_spinner_min_width"
+            android:spinnerMode="dropdown"
+            android:theme="@style/BottomSheetSpinnerItemStyle"
+            android:layout_alignParentRight="true"/>
+
+    </RelativeLayout>
+    <!-- Camera selection row -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/bottom_sheet_default_row_margin">
+
+        <TextView
+            android:text="@string/label_resolutions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/bottom_sheet_text_size"
+            android:textColor="@color/bottom_sheet_text_color" />
+
+        <androidx.appcompat.widget.AppCompatSpinner
+            android:id="@+id/spinner_resolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="@dimen/resolution_spinner_min_width"
+            android:spinnerMode="dropdown"
+            android:theme="@style/BottomSheetSpinnerItemStyle"
+            android:layout_alignParentRight="true"/>
+
+    </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="15dp"
+            android:layout_centerHorizontal="true">
+
+            <TextView
+                android:id="@+id/okay_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginRight="10dp"
+                android:text="Okay"
+                android:textStyle="bold"
+                android:textColor="#3F51B5"
+                android:textSize="30sp" />
+
+            <TextView
+                android:id="@+id/cancel_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="30dp"
+                android:layout_alignParentRight="true"
+                android:text="Cancel"
+                android:textStyle="bold"
+                android:textColor="#FF0000"
+                android:textSize="30sp" />
+
+        </RelativeLayout>
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+</RelativeLayout>

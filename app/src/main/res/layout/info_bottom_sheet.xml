@@ -46,10 +46,16 @@
                 android:contentDescription="@string/alt_bottom_sheet_chevron" />
 
             <Button
-                android:id="@+id/button"
+                android:id="@+id/startstop_button"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:text="@string/label_startstop_btn_start" />
+            <Button
+                android:id="@+id/resolution_button"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_alignParentRight="true"
+                android:text = "@string/label_resolution_btn" />
         </RelativeLayout>
 
         <!-- mode -->
@@ -325,53 +331,6 @@
                 android:theme="@style/BottomSheetSpinnerItemStyle"
                 android:layout_alignParentRight="true"
                 android:entries="@array/models_spinner_titles"/>
-
-        </RelativeLayout>
-
-        <!-- Camera selection row -->
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/bottom_sheet_default_row_margin">
-
-            <TextView
-                android:text="@string/label_cameras"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="@dimen/bottom_sheet_text_size"
-                android:textColor="@color/bottom_sheet_text_color" />
-
-            <androidx.appcompat.widget.AppCompatSpinner
-                android:id="@+id/spinner_camera"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="@dimen/bottom_sheet_spinner_model_min_width"
-                android:spinnerMode="dropdown"
-                android:theme="@style/BottomSheetSpinnerItemStyle"
-                android:layout_alignParentRight="true"/>
-
-        </RelativeLayout>
-        <!-- Camera selection row -->
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/bottom_sheet_default_row_margin">
-
-            <TextView
-                android:text="@string/label_resolutions"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="@dimen/bottom_sheet_text_size"
-                android:textColor="@color/bottom_sheet_text_color" />
-
-            <androidx.appcompat.widget.AppCompatSpinner
-                android:id="@+id/spinner_resolution"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="@dimen/bottom_sheet_spinner_model_min_width"
-                android:spinnerMode="dropdown"
-                android:theme="@style/BottomSheetSpinnerItemStyle"
-                android:layout_alignParentRight="true"/>
 
         </RelativeLayout>
 </androidx.appcompat.widget.LinearLayoutCompat>

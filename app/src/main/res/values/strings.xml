@@ -33,6 +33,8 @@
     <string name="label_startstop_btn_start">Start</string>
     <string name="label_startstop_btn_stop">Stop</string>
 
+    <string name="label_resolution_btn">Resolution</string>
+
     <string name="label_modes">Mode</string>
     <string name="label_det_confidence_threshold">Det threshold</string>
     <string name="label_det_expected_results_num">Det expected obj num</string>

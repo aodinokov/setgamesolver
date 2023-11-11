@@ -26,7 +26,9 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import java.util.LinkedList
 import kotlin.math.max
@@ -93,6 +95,16 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     }
 
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+
+        if (event != null) {
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        return super.onTouchEvent(event)
+    }
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 

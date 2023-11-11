@@ -66,6 +66,9 @@
     <string name="label_resolution_max">Max</string>
     <string name="label_resolution_recommended">Recommended</string>
 
+    <string name="label_ok_btn">Ok</string>
+    <string name="label_cancel_btn">Cancel</string>
+
     <!-- don't change the order -->
     <string-array name="camera_select_facing">
         <item>Back</item>

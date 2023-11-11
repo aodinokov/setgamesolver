@@ -2,7 +2,8 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="10dp">
+    android:background="@color/resolution_dialog_background"
+    android:padding="@dimen/resolution_dialog_padding">
 
 
     <androidx.appcompat.widget.LinearLayoutCompat
@@ -27,7 +28,7 @@
             android:id="@+id/spinner_camera"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minWidth="@dimen/resolution_spinner_min_width"
+            android:minWidth="@dimen/camera_spinner_min_width"
             android:spinnerMode="dropdown"
             android:theme="@style/BottomSheetSpinnerItemStyle"
             android:layout_alignParentRight="true"/>
@@ -63,26 +64,17 @@
             android:layout_margin="15dp"
             android:layout_centerHorizontal="true">
 
-            <TextView
+            <Button
                 android:id="@+id/okay_text"
-                android:layout_width="wrap_content"
+                android:layout_width="@dimen/resolution_dialog_buttons_width"
                 android:layout_height="wrap_content"
-                android:layout_marginRight="10dp"
-                android:text="Okay"
-                android:textStyle="bold"
-                android:textColor="#3F51B5"
-                android:textSize="30sp" />
-
-            <TextView
+                android:text="@string/label_ok_btn" />
+            <Button
                 android:id="@+id/cancel_text"
-                android:layout_width="wrap_content"
+                android:layout_width="@dimen/resolution_dialog_buttons_width"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="30dp"
                 android:layout_alignParentRight="true"
-                android:text="Cancel"
-                android:textStyle="bold"
-                android:textColor="#FF0000"
-                android:textSize="30sp" />
+                android:text = "@string/label_cancel_btn" />
 
         </RelativeLayout>
 

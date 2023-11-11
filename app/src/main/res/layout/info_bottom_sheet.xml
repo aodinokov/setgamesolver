@@ -47,13 +47,13 @@
 
             <Button
                 android:id="@+id/startstop_button"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="@dimen/bottom_sheet_buttons_width"
+                android:layout_height="wrap_content"
                 android:text="@string/label_startstop_btn_start" />
             <Button
                 android:id="@+id/resolution_button"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="@dimen/bottom_sheet_buttons_width"
+                android:layout_height="wrap_content"
                 android:layout_alignParentRight="true"
                 android:text = "@string/label_resolution_btn" />
         </RelativeLayout>
@@ -77,7 +77,7 @@
                 android:layout_height="wrap_content"
                 android:layout_alignParentRight="true"
                 android:entries="@array/modes_spinner_titles"
-                android:minWidth="@dimen/bottom_sheet_spinner_model_min_width"
+                android:minWidth="@dimen/bottom_sheet_spinner_mode_min_width"
                 android:spinnerMode="dropdown"
                 android:theme="@style/BottomSheetSpinnerItemStyle" />
 

@@ -24,12 +24,14 @@
         android:id="@+id/view_finder"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:scaleType="fillStart"/>
+        android:layout_marginBottom="@dimen/bottom_sheet_peek_height"
+        app:scaleType="fillStart" />
 
     <org.tensorflow.lite.examples.objectdetection.OverlayView
         android:id="@+id/overlay"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_width="match_parent" />
+        android:layout_marginBottom="@dimen/bottom_sheet_peek_height"/>
 
     <include
         android:id="@+id/bottom_sheet_layout"

@@ -64,10 +64,14 @@ class SelectedCamera(    val auto: Boolean = true,
 }
 
 class SelectedCameraResolution(val parent: SelectedCamera,
-                               val size: Size
+                               val size: Size,
+                               val stringRepr: String = ""
 ){
     override fun toString(): String {
-        return size.toString()
+        if (stringRepr == "") {
+            return size.toString()
+        }
+        return stringRepr
     }
 }
 
@@ -442,12 +446,48 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
         }
 
-        // TODO: add Recommended, Maximum sizes to the front and sort by h*w from highest to lowest
+        if (cameraResolutions.size == 0) {
+            return emptyArray()
+        }
+
+        val res = mutableListOf <SelectedCameraResolution>()
         // Recommended is using the 4:3 ratio because this is the closest to our models
         // the classifier has a resolution 224x224 and typically we have 3 x 4 or 4x4 cards with gaps
         // that gives us something around 2000-1000x 2000-1000 - no need to have higher resolutions
         // e.g. 1920x1440 works ok (it's 4:3 - 480 is base)
-        return cameraResolutions.values.toTypedArray()
+        var recommended: SelectedCameraResolution? = null
+        var max: SelectedCameraResolution? = null
+
+        var curMaxS = 0
+        var curRecS = 0
+        for (x in cameraResolutions.values) {
+            //add
+            res.add(x)
+            // find max
+            if ( curMaxS < x.size.height * x.size.width) {
+                curMaxS = x.size.height * x.size.width
+                max = x
+            }
+            //find recommended
+            if (x.size.height < 2000 && x.size.width < 2000 &&
+                    x.size.width *3 == x.size.height * 4 &&
+                    curRecS < x.size.height * x.size.width) {
+                curRecS = x.size.height * x.size.width
+                recommended = x
+            }
+        }
+
+        //sort res by S
+        res.sortBy { it.size.width*it.size.height }
+
+        if (max != null) {
+            res.add(SelectedCameraResolution(max.parent, max.size, "Max"))
+        }
+        if (recommended != null) {
+            res.add(SelectedCameraResolution(recommended.parent, recommended.size, "Auto"))
+        }
+        res.reverse()
+        return res.toTypedArray()
     }
 
     fun getAvailableResolutions(cameraManager: CameraManager): List<Size> {

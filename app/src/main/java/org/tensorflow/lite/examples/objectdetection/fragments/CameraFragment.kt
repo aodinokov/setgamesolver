@@ -16,14 +16,18 @@
 package org.tensorflow.lite.examples.objectdetection.fragments
 
 import android.annotation.SuppressLint
+import android.app.AlarmManager
 import android.app.Dialog
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Bundle
+import android.preference.PreferenceManager
 import android.util.Log
 import android.util.Size
 import android.view.LayoutInflater
@@ -34,6 +38,7 @@ import android.widget.ArrayAdapter
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -287,38 +292,79 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             dialog.setCancelable(false)
             //dialog.window!!.attributes.windowAnimations = R.style.animation
 
+            val spinner_camera = dialog.findViewById<Spinner>(R.id.spinner_camera)
+            val spinner_resolution = dialog.findViewById<Spinner>(R.id.spinner_resolution)
             val okay_text = dialog.findViewById<TextView>(R.id.okay_text)
             val cancel_text = dialog.findViewById<TextView>(R.id.cancel_text)
 
             okay_text.setOnClickListener(View.OnClickListener {
+                //store preferences
+                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+                val c = preferences.getString("camera", "")
+                val r = preferences.getString("resolution", "")
+
+                var configChanged = false
+                if (c != spinner_camera.adapter.getItem(spinner_camera.selectedItemId.toInt()).toString() ||
+                        r != spinner_resolution.adapter.getItem(spinner_resolution.selectedItemId.toInt()).toString()) {
+                    configChanged = true
+                    val editor = preferences.edit()
+                    editor.putString("camera", spinner_camera.adapter.getItem(spinner_camera.selectedItemId.toInt()).toString())
+                    editor.putString("resolution", spinner_resolution.adapter.getItem(spinner_resolution.selectedItemId.toInt()).toString())
+                    editor.apply()
+                }
+
                 dialog.dismiss()
-                Toast.makeText(requireContext(), "okay clicked", Toast.LENGTH_SHORT).show()
+
+                if (configChanged) {
+                    Toast.makeText(requireContext(), "restarting to apply changes", Toast.LENGTH_SHORT).show()
+                    // restart app to apply the new settings
+                    doRestart(requireContext())
+                }
             })
 
             cancel_text.setOnClickListener(View.OnClickListener {
                 dialog.dismiss()
-                Toast.makeText(requireContext(), "Cancel clicked", Toast.LENGTH_SHORT).show()
             })
 
-            val spinner_camera = dialog.findViewById<Spinner>(R.id.spinner_camera)
-            val spinner_resolution = dialog.findViewById<Spinner>(R.id.spinner_resolution)
             val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            var adapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  BuildCamerasList(cm))
-            spinner_camera.adapter = adapter
+            val cameras_list = BuildCamerasList(cm)
+            var cameras_adapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  cameras_list)
+            spinner_camera.adapter = cameras_adapter
             spinner_camera.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
                     val upperAdapter = p0!!.adapter
                     val camera = upperAdapter.getItem(p2)
-                    // update resolution list
-                    val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                    var adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item,  BuildCameraResolutionList(cm, camera as SelectedCamera))
-                    spinner_resolution.adapter = adapter
-
+                    // update resolution list if resolution has a different selected camera?
+                    if (!spinner_resolution.adapter.isEmpty && (spinner_resolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
+                        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                        var adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, BuildCameraResolutionList(cm, camera as SelectedCamera))
+                        spinner_resolution.adapter = adapter
+                    }
                 }
                 override fun onNothingSelected(p0: AdapterView<*>?) {
                     /* no op */
                 }
+            }
+            if (cameras_list.size > 0) {
+                // read and set dialog
+                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+
+                val c = preferences.getString("camera", cameras_list[0].toString())
+                // find the current id
+                var ci = cameras_list.indexOfFirst { it.toString() == c }
+                if (ci < 0){ ci = 0}
+                spinner_camera.setSelection(ci, false)
+
+                val resolution_list = BuildCameraResolutionList(cm, cameras_list[ci])
+                var resolution_adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, resolution_list)
+                spinner_resolution.adapter = resolution_adapter
+
+                val r = preferences.getString("resolution", resolution_list[0].toString())
+                // find the resolution id
+                var ri = resolution_list.indexOfFirst { it.toString() == r }
+                if (ri < 0){ ri = 0}
+                spinner_resolution.setSelection(ri, false)
             }
             dialog.show()
         }
@@ -348,6 +394,46 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         // delegate needs to be initialized on the thread using it when applicable
         setgameDetectorHelper.clearObjectDetector()
         fragmentCameraBinding.overlay.clear(setgameDetectorHelper.scanEnabled)
+    }
+
+    // restart app to apply new camera settings
+    fun doRestart(c: Context?) {
+        try {
+            //check if the context is given
+            if (c != null) {
+                //fetch the packagemanager so we can get the default launch activity
+                // (you can replace this intent with any other activity if you want
+                val pm = c.packageManager
+                //check if we got the PackageManager
+                if (pm != null) {
+                    //create the intent with the default start activity for your application
+                    val mStartActivity = pm.getLaunchIntentForPackage(
+                            c.packageName
+                    )
+                    if (mStartActivity != null) {
+                        mStartActivity.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        //create a pending intent so the application is restarted after System.exit(0) was called.
+                        // We use an AlarmManager to call this intent in 100ms
+                        val mPendingIntentId = 223344
+                        val mPendingIntent = PendingIntent
+                                .getActivity(c, mPendingIntentId, mStartActivity,
+                                        PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                        val mgr = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                        mgr[AlarmManager.RTC, System.currentTimeMillis() + 100] = mPendingIntent
+                        //kill the application - actually doesn't work if next line is uncommented
+                        //System.exit(0)
+                    } else {
+                        Log.e(TAG, "Was not able to restart application, mStartActivity null")
+                    }
+                } else {
+                    Log.e(TAG, "Was not able to restart application, PM null")
+                }
+            } else {
+                Log.e(TAG, "Was not able to restart application, Context null")
+            }
+        } catch (ex: java.lang.Exception) {
+            Log.e(TAG, "Was not able to restart application")
+        }
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -490,47 +576,28 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         return res.toTypedArray()
     }
 
-    fun getAvailableResolutions(cameraManager: CameraManager): List<Size> {
-        // Get the list of camera IDs.
-        val cameraIds = cameraManager.cameraIdList
-
-        // Create a list to store the available resolutions.
-        val availableResolutions = mutableListOf<Size>()
-
-        // For each camera ID, get the CameraCharacteristics object.
-        for (cameraId in cameraIds) {
-
-            // Get the CameraCharacteristics object.
-            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
-
-            val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
-
-            // Get the SCALER_STREAM_CONFIGURATION_MAP from the CameraCharacteristics object.
-            val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-
-            // Get the list of output sizes from the SCALER_STREAM_CONFIGURATION_MAP object.
-            val outputSizes = map?.getOutputSizes(SurfaceTexture::class.java)
-
-            // Add the output sizes to the list of available resolutions.
-            outputSizes?.forEach { availableResolutions.add(it) }
-        }
-
-        // Return the list of available resolutions.
-        return availableResolutions
-    }
-
     // Declare and bind preview, capture and analysis use cases
     @SuppressLint("UnsafeOptInUsageError")
     private fun bindCameraUseCases() {
+        // read settings from preferences
+        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
 
-        getAvailableResolutions(context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager)
-//        val cameraManager =  context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-//        for (cameraId in cameraManager.cameraIdList){
-//            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
-//            val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-//            val sizes = streamConfigurationMap?.getOutputSizes(ImageFormat.RAW_SENSOR);
-//            Log.d(TAG, "onCreate:" + sizes.toString());
-//        }
+        val cameras_list = BuildCamerasList(cm)
+        val c = preferences.getString("camera", cameras_list[0].toString())
+        // find the current id
+        var ci = cameras_list.indexOfFirst { it.toString() == c }
+        if (ci < 0){ ci = 0}
+
+        val resolution_list = BuildCameraResolutionList(cm, cameras_list[ci])
+        val r = preferences.getString("resolution", resolution_list[0].toString())
+        // find the resolution id
+        var ri = resolution_list.indexOfFirst { it.toString() == r }
+        if (ri < 0){ ri = 0}
+
+        val selectedCamera = cameras_list[ci]
+        val selectedCameraResolution = resolution_list[ri]
+        val failsafeStartMode = preferences.getBoolean("failsafe_start", false)
 
         // CameraProvider
         val cameraProvider =
@@ -538,30 +605,42 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
         val availableCameraInfos = cameraProvider.getAvailableCameraInfos();
 
+        val editor = preferences.edit()
+        // starting the critical initialization part
+        editor.putBoolean("failsafe_start", true)
+        editor.apply()
 
         // CameraSelector - makes assumption that we're only using the back camera
-        val cameraSelector = //availableCameraInfos.get(2).cameraSelector
-            CameraSelector.Builder()
-                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+        var cameraSelector: CameraSelector? = null
+        if (selectedCamera.auto) {
+            var facing = CameraSelector.LENS_FACING_BACK
+            if (selectedCamera.facing == 1) {
+                facing = CameraSelector.LENS_FACING_FRONT
+            }
+            cameraSelector = CameraSelector.Builder()
+                    .requireLensFacing(facing)
                     .build()
+        } else {
+            cameraSelector = availableCameraInfos.get(selectedCamera.cameraId.toInt()).cameraSelector
+        }
 
+        var previewBuilder = Preview.Builder()
+        var imageAnalyzerBuilder = ImageAnalysis.Builder()
+        if (failsafeStartMode) {
+            previewBuilder =  previewBuilder.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+            imageAnalyzerBuilder = imageAnalyzerBuilder.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        } else {
+            // switching h and w
+            previewBuilder =  previewBuilder.setTargetResolution(Size(selectedCameraResolution.size.height, selectedCameraResolution.size.width ))
+            imageAnalyzerBuilder = imageAnalyzerBuilder.setTargetResolution(Size(selectedCameraResolution.size.height, selectedCameraResolution.size.width))
+        }
         // Preview. Only using the 4:3 ratio because this is the closest to our models
-        preview =
-            Preview.Builder()
-                //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                //.setTargetResolution(Size(1024, 768))
-                    .setTargetResolution(Size(1440, 1920 ))
-                    //.setTargetAspectRatio(AspectRatio.RATIO_16_9)
+        preview = previewBuilder
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .build()
 
         // ImageAnalysis. Using RGBA 8888 to match how our models work
-        imageAnalyzer =
-            ImageAnalysis.Builder()
-                //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                //.setTargetResolution(Size(1024, 768))
-                    .setTargetResolution(Size( 1440, 1920))
-
+        imageAnalyzer = imageAnalyzerBuilder
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(OUTPUT_IMAGE_FORMAT_RGBA_8888)
@@ -579,7 +658,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                               Bitmap.Config.ARGB_8888
                             )
                         }
-
                         detectObjects(image)
                     }
                 }
@@ -597,6 +675,10 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
         }
+
+        // passed the critical initialization part
+        editor.putBoolean("failsafe_start", false)
+        editor.apply()
     }
 
     private fun detectObjects(image: ImageProxy) {

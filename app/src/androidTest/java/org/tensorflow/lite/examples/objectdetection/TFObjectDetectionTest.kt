@@ -41,7 +41,7 @@ class TFObjectDetectionTest {
     val controlResults = listOf<Detection>(
         Detection.create(RectF(69.0f, 58.0f, 227.0f, 171.0f),
             listOf<Category>(Category.create("cat", "cat", 0.77734375f))),
-        Detection.create(RectF(13.0f, 6.0f, 283.0f, 215.0f),
+        Detection.create(RectF(15.0f, 5.0f, 285.0f, 214.0f),
             listOf<Category>(Category.create("couch", "couch", 0.5859375f))),
             Detection.create(RectF(45.0f, 27.0f, 257.0f, 184.0f),
             listOf<Category>(Category.create("chair", "chair", 0.55078125f)))
@@ -73,21 +73,21 @@ class TFObjectDetectionTest {
                             // Loop through the detected and control data
                             for (i in controlResults.indices) {
                                 // Verify that the bounding boxes are the same
-                                assertEquals(results[i].getBoundingBox(), controlResults[i].getBoundingBox())
+                                assertEquals(controlResults[i].getBoundingBox(), results[i].getBoundingBox())
 
                                 // Verify that the detected data and control
                                 // data have the same number of categories
                                 assertEquals(
-                                    results[i].getCategories().size,
-                                    controlResults[i].getCategories().size
+                                        controlResults[i].getCategories().size,
+                                        results[i].getCategories().size
                                 )
 
                                 // Loop through the categories
                                 for (j in 0 until controlResults[i].categories.size - 1) {
                                     // Verify that the labels are consistent
                                     assertEquals(
-                                        results[i].getCategories()[j].label,
-                                        controlResults[i].getCategories()[j].label
+                                            controlResults[i].getCategories()[j].label,
+                                            results[i].getCategories()[j].label
                                     )
                                 }
                             }

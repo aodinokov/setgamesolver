@@ -254,7 +254,8 @@ class SetgameObjectModelTest {
         // corner cases
         validateCombination(listOf<String>(), setOf<String>())
         validateCombination(listOf<String>("1-green-empty-diamond"), setOf<String>())
-        validateCombination(listOf<String>("1-green-empty-diamond", "1-green-empty-oval", "1-green-empty-squiggle"), setOf<String>("(1-green-empty-diamond, 1-green-empty-oval, 1-green-empty-squiggle)"))
+        validateCombination(listOf<String>("1-green-empty-diamond", "1-green-empty-oval", "1-green-empty-squiggle"),
+                setOf<String>("(1-green-empty-diamond, 1-green-empty-oval, 1-green-empty-squiggle)"))
         // big test
         validateCombination(validLabels.slice(0..11), setsOfFirst12labels)
     }

@@ -23,6 +23,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -31,10 +33,13 @@ import android.preference.PreferenceManager
 import android.util.Log
 import android.util.Size
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -49,6 +54,11 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
+import org.tensorflow.lite.examples.objectdetection.CardColor
+import org.tensorflow.lite.examples.objectdetection.CardNumber
+import org.tensorflow.lite.examples.objectdetection.CardShading
+import org.tensorflow.lite.examples.objectdetection.CardShape
+import org.tensorflow.lite.examples.objectdetection.CardValue
 import org.tensorflow.lite.examples.objectdetection.Detected
 import org.tensorflow.lite.examples.objectdetection.DetectorMode
 import org.tensorflow.lite.examples.objectdetection.R
@@ -57,7 +67,64 @@ import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBi
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.pow
 
+
+/**
+ * 9x9 Bitmap with adjustable order
+ */
+class ThumbnailsBitmapHelper(
+        val thumbnailsBitmap: Bitmap,
+        // maps & weights (higher - bigger)
+        val numberWeight: Int = 3,
+        val numberMap: Map<Int,Int>? = null,
+        val colorWeight: Int = 2,
+        val colorMap: Map<Int,Int>?= null,
+        val shadingWeight: Int = 1,
+        val shadingMap: Map<Int,Int>?= null,
+        val shapeWeight: Int = 0,
+        val shapeMap: Map<Int,Int>?= null) {
+
+    fun getThumbIndx(cardValue: CardValue):Int {
+        var number = cardValue.number.code - 1
+        var color = cardValue.color.code - 1
+        var shading = cardValue.shading.code - 1
+        var shape = cardValue.shape.code - 1
+
+        if (numberMap != null) number = numberMap[number]!!
+        if (colorMap != null) color = colorMap[color]!!
+        if (shadingMap != null) shading = shadingMap[shading]!!
+        if (shapeMap != null) shape = shapeMap[shape]!!
+
+        val idx = number * 3.0.pow(numberWeight).toInt() +
+                color * 3.0.pow(colorWeight).toInt() +
+                shading * 3.0.pow(shadingWeight).toInt() +
+                shape * 3.0.pow(shapeWeight).toInt()
+
+        assert(idx >= 0 && idx < 81)
+        return idx
+    }
+    fun getThumbColumn(idx: Int): Int {
+        return idx % 9
+    }
+    fun getThumbRow(idx: Int): Int {
+        return idx / 9
+    }
+    fun getSingleThumbBitmap(idx: Int):Bitmap {
+        val column = getThumbColumn(idx)
+        val row = getThumbRow(idx)
+        val src = Rect(
+                thumbnailsBitmap!!.width / 9 * column,
+                thumbnailsBitmap!!.height / 9 * row,
+                thumbnailsBitmap!!.width / 9 * (column + 1),
+                thumbnailsBitmap!!.height / 9 * (row + 1))
+        return Bitmap.createBitmap(thumbnailsBitmap!!,
+                thumbnailsBitmap!!.width / 9 * column,
+                thumbnailsBitmap!!.height / 9 * row,
+                thumbnailsBitmap!!.width / 9,
+                thumbnailsBitmap!!.height / 9)
+    }
+}
 
 class SelectedCamera(    val auto: Boolean = true,
                          val facing: Int = 0,
@@ -99,6 +166,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     /** Blocking camera operations are performed using this executor */
     private lateinit var cameraExecutor: ExecutorService
 
+    private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
+
     override fun onResume() {
         super.onResume()
         // Make sure that all permissions are still present, since the
@@ -131,6 +200,20 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        if (thumbnailsBitmapHelper == null) {
+            val inputStream = resources.assets.open("setgame-cards.png")
+            val thumbnailsBitmap = BitmapFactory.decodeStream(inputStream)
+            thumbnailsBitmapHelper = ThumbnailsBitmapHelper(thumbnailsBitmap,
+                    numberWeight = 0,
+                    colorWeight = 1,
+                    shapeWeight = 2,
+                    shadingWeight = 3,
+                    colorMap = mapOf<Int,Int>(Pair(0,2),Pair(1,1),Pair(2,0)),
+                    shadingMap = mapOf<Int,Int>(Pair(0,2),Pair(1,0),Pair(2,1)),
+                    shapeMap = mapOf<Int,Int>(Pair(0,1),Pair(1,2),Pair(2,0)))
+        }
+        fragmentCameraBinding.overlay.setThumbnailsBitmapHelper(thumbnailsBitmapHelper)
+
         setgameDetectorHelper = SetgameDetectorHelper(
             context = requireContext(),
             objectDetectorListener = this)
@@ -145,14 +228,14 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         }
 
         // Attach listeners to UI control widgets
-        initBottomSheetControls()
+        initControlsUi()
 
         // Reuse the function to set text fields based on the current data
         updateTextControlsUi()
     }
 
-    private fun initBottomSheetControls() {
-
+    @SuppressLint("ClickableViewAccessibility")
+    private fun initControlsUi() {
         // When clicked, change the underlying model used for object detection
         fragmentCameraBinding.bottomSheetLayout.spinnerMode.setSelection(setgameDetectorHelper.detectorMode.mode, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerMode.onItemSelectedListener =
@@ -285,17 +368,17 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             updateTextControlsUi()
         }
 
-        val dialog = Dialog(requireContext())
+        val resolutionDialog = Dialog(requireContext())
         fragmentCameraBinding.bottomSheetLayout.resolutionButton.setOnClickListener {
-            dialog.setContentView(R.layout.resolution_dialog)
-            dialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            dialog.setCancelable(false)
+            resolutionDialog.setContentView(R.layout.resolution_dialog)
+            resolutionDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            resolutionDialog.setCancelable(false)
             //dialog.window!!.attributes.windowAnimations = R.style.animation
 
-            val spinner_camera = dialog.findViewById<Spinner>(R.id.spinner_camera)
-            val spinner_resolution = dialog.findViewById<Spinner>(R.id.spinner_resolution)
-            val okay_text = dialog.findViewById<TextView>(R.id.okay_text)
-            val cancel_text = dialog.findViewById<TextView>(R.id.cancel_text)
+            val spinner_camera = resolutionDialog.findViewById<Spinner>(R.id.spinner_camera)
+            val spinner_resolution = resolutionDialog.findViewById<Spinner>(R.id.spinner_resolution)
+            val okay_text = resolutionDialog.findViewById<TextView>(R.id.okay_text)
+            val cancel_text = resolutionDialog.findViewById<TextView>(R.id.cancel_text)
 
             okay_text.setOnClickListener(View.OnClickListener {
                 //store preferences
@@ -313,7 +396,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     editor.apply()
                 }
 
-                dialog.dismiss()
+                resolutionDialog.dismiss()
 
                 if (configChanged) {
                     Toast.makeText(requireContext(), "restarting to apply changes", Toast.LENGTH_SHORT).show()
@@ -323,7 +406,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             })
 
             cancel_text.setOnClickListener(View.OnClickListener {
-                dialog.dismiss()
+                resolutionDialog.dismiss()
             })
 
             val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -366,8 +449,95 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                 if (ri < 0){ ri = 0}
                 spinner_resolution.setSelection(ri, false)
             }
-            dialog.show()
+            resolutionDialog.show()
         }
+
+        val overrideDialog = Dialog(requireContext())
+        fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { view, event ->
+            if (event != null && thumbnailsBitmapHelper != null) {
+                val dialog = overrideDialog
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    //Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
+                    overrideDialog.setContentView(R.layout.card_override_dialog)
+                    overrideDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    overrideDialog.setCancelable(false)
+
+                    val okay_text = overrideDialog.findViewById<TextView>(R.id.okay_text)
+                    val cancel_text = overrideDialog.findViewById<TextView>(R.id.cancel_text)
+
+                    // variations per axis
+                    val minusCount = overrideDialog.findViewById<ImageButton>(R.id.minus_count)
+                    val plusCount = overrideDialog.findViewById<ImageButton>(R.id.plus_count)
+                    val minusColor = overrideDialog.findViewById<ImageButton>(R.id.minus_color)
+                    val plusColor = overrideDialog.findViewById<ImageButton>(R.id.plus_color)
+                    val minusFill = overrideDialog.findViewById<ImageButton>(R.id.minus_fill)
+                    val plusFill = overrideDialog.findViewById<ImageButton>(R.id.plus_fill)
+                    val minusShape = overrideDialog.findViewById<ImageButton>(R.id.minus_shape)
+                    val plusShape = overrideDialog.findViewById<ImageButton>(R.id.plus_shape)
+
+                    fun setView(currentCardValue: CardValue) {
+                        val current = overrideDialog.findViewById<ImageView>(R.id.current)
+                        current.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(currentCardValue)))
+                        // their values
+                        val minusCountCard = CardValue(CardNumber.previous(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
+                        val plusCountCard = CardValue(CardNumber.next(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
+                        val minusColorCard = CardValue(currentCardValue.number, CardColor.previous(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
+                        val plusColorCard = CardValue(currentCardValue.number, CardColor.next(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
+                        val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.previous(currentCardValue.shading), currentCardValue.shape)
+                        val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.next(currentCardValue.shading), currentCardValue.shape)
+                        val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.previous(currentCardValue.shape))
+                        val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
+                        // set the picture
+                        minusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusCountCard)))
+                        minusCount.setOnClickListener(View.OnClickListener {
+                            setView(minusCountCard)
+                        })
+                        plusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusCountCard)))
+                        plusCount.setOnClickListener(View.OnClickListener {
+                            setView(plusCountCard)
+                        })
+                        minusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusColorCard)))
+                        minusColor.setOnClickListener(View.OnClickListener {
+                            setView(minusColorCard)
+                        })
+                        plusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusColorCard)))
+                        plusColor.setOnClickListener(View.OnClickListener {
+                            setView(plusColorCard)
+                        })
+                        minusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusFillCard)))
+                        minusFill.setOnClickListener(View.OnClickListener {
+                            setView(minusFillCard)
+                        })
+                        plusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusFillCard)))
+                        plusFill.setOnClickListener(View.OnClickListener {
+                            setView(plusFillCard)
+                        })
+                        minusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusShapeCard)))
+                        minusShape.setOnClickListener(View.OnClickListener {
+                            setView(minusShapeCard)
+                        })
+                        plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusShapeCard)))
+                        plusShape.setOnClickListener(View.OnClickListener {
+                            setView(plusShapeCard)
+                        })
+                    }
+
+                    cancel_text.setOnClickListener(View.OnClickListener {
+                        overrideDialog.dismiss()
+                    })
+
+                    // TODO: find if we pressed within any detected card? if so - propose to override
+                    setView(CardValue(
+                            CardNumber.ONE,
+                            CardColor.GREEN,
+                            CardShading.SOLID,
+                            CardShape.DIAMOND))
+
+                    overrideDialog.show()
+                }
+            }
+            return@OnTouchListener true
+        })
     }
 
     // Update the values displayed in the bottom sheet. Reset detector.

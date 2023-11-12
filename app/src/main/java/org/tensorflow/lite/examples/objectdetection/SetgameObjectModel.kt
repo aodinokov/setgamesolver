@@ -130,7 +130,7 @@ data class CardValue(val number: CardNumber, var color: CardColor, var shading: 
             val number = CardNumber.fromString(parts.elementAt(0)) ?: return null
             val color = CardColor.fromString(parts.elementAt(1)) ?: return null
             val shading = CardShading.fromString(parts.elementAt(2)) ?: return null
-            if (number != CardNumber.ONE && parts.elementAt(3).last() == 's') {
+            if (/*number != CardNumber.ONE &&*/ parts.elementAt(3).last() == 's') {
                 // support plural
                 val shape = CardShape.fromString(parts.elementAt(3).dropLast(1)) ?: return null
                 return CardValue(number, color, shading, shape)

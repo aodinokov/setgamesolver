@@ -16,11 +16,8 @@
 
 package org.tensorflow.lite.examples.objectdetection
 
-import android.app.Dialog
 import android.content.Context
 import android.content.res.TypedArray
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -29,11 +26,8 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.core.content.ContextCompat
+import org.tensorflow.lite.examples.objectdetection.fragments.ThumbnailsBitmapHelper
 import java.util.LinkedList
 import kotlin.math.max
 
@@ -47,19 +41,13 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
     private var textBackgroundPaint = Paint()
     private var textPaint = Paint()
     private var groupBoxPaintMap = HashMap<Int, Paint>()
-    private var thumbnailsBitmap: Bitmap? = null
+    private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
 
     private var scaleFactor: Float = 1f
 
     private var bounds = Rect()
 
-    private var override_dialog: Dialog? = null
-
     init {
-        if (context != null) {
-            override_dialog = Dialog(context)
-        }
-
         initPaints()
     }
 
@@ -71,6 +59,10 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         boxPaint.reset()
         invalidate()
         initPaints()
+    }
+
+    fun setThumbnailsBitmapHelper(helper: ThumbnailsBitmapHelper?) {
+        thumbnailsBitmapHelper = helper
     }
 
     private fun initPaints() {
@@ -96,129 +88,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
             p.style = Paint.Style.STROKE
             groupBoxPaintMap[i] = p
         }
-
-        // init thumbnail Bitmap
-        if (thumbnailsBitmap == null) {
-            val inputStream = resources.assets.open("setgame-cards.png")
-            thumbnailsBitmap = BitmapFactory.decodeStream(inputStream)
-        }
-
     }
 
-    private fun getThumbIndx(crd: CardValue):Int {
-        val idx = (((crd.shading.code - 1) * 3 + (crd.shape.code - 1)) * 3 + (crd.color.code - 1)) * 3 + (crd.number.code - 1)
-        assert(idx >= 0 && idx < 81)
-        return idx
-    }
-    private fun getThumbColumn(idx: Int): Int {
-        return idx % 9
-    }
-    private fun getThumbRow(idx: Int): Int {
-        return idx / 9
-    }
-    private fun getSingleThumbBitmap(idx: Int):Bitmap {
-        val column = getThumbColumn(idx)
-        val row = getThumbRow(idx)
-        val src = Rect(
-                thumbnailsBitmap!!.width / 9 * column,
-                thumbnailsBitmap!!.height / 9 * row,
-                thumbnailsBitmap!!.width / 9 * (column + 1),
-                thumbnailsBitmap!!.height / 9 * (row + 1))
-        return Bitmap.createBitmap(thumbnailsBitmap!!,
-                thumbnailsBitmap!!.width / 9 * column,
-                thumbnailsBitmap!!.height / 9 * row,
-                thumbnailsBitmap!!.width / 9,
-                thumbnailsBitmap!!.height / 9)
-    }
-
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-
-        if (event != null && override_dialog != null) {
-            val dialog = override_dialog!!
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                // TODO: find if we pressed within any detected card? if so - propose to override
-
-                //Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
-                dialog.setContentView(R.layout.card_override_dialog)
-                dialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                dialog.setCancelable(false)
-
-                val okay_text = dialog.findViewById<TextView>(R.id.okay_text)
-                val cancel_text = dialog.findViewById<TextView>(R.id.cancel_text)
-
-                // variations per axis
-                val minusCount = dialog.findViewById<ImageButton>(R.id.minus_count)
-                val plusCount = dialog.findViewById<ImageButton>(R.id.plus_count)
-                val minusColor = dialog.findViewById<ImageButton>(R.id.minus_color)
-                val plusColor = dialog.findViewById<ImageButton>(R.id.plus_color)
-                val minusFill = dialog.findViewById<ImageButton>(R.id.minus_fill)
-                val plusFill = dialog.findViewById<ImageButton>(R.id.plus_fill)
-                val minusShape = dialog.findViewById<ImageButton>(R.id.minus_shape)
-                val plusShape = dialog.findViewById<ImageButton>(R.id.plus_shape)
-
-                fun setView(currentCardValue: CardValue) {
-                    val current = dialog.findViewById<ImageView>(R.id.current)
-                    current.setImageBitmap(getSingleThumbBitmap(getThumbIndx(currentCardValue)))
-                    // their values
-                    val minusCountCard = CardValue(CardNumber.previous(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
-                    val plusCountCard = CardValue(CardNumber.next(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
-                    val minusColorCard = CardValue(currentCardValue.number, CardColor.previous(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
-                    val plusColorCard = CardValue(currentCardValue.number, CardColor.next(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
-                    val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.previous(currentCardValue.shading), currentCardValue.shape)
-                    val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.next(currentCardValue.shading), currentCardValue.shape)
-                    val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.previous(currentCardValue.shape))
-                    val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
-                    // set the picture
-                    minusCount.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusCountCard)))
-                    minusCount.setOnClickListener(View.OnClickListener {
-                        setView(minusCountCard)
-                    })
-                    plusCount.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusCountCard)))
-                    plusCount.setOnClickListener(View.OnClickListener {
-                        setView(plusCountCard)
-                    })
-                    minusColor.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusColorCard)))
-                    minusColor.setOnClickListener(View.OnClickListener {
-                        setView(minusColorCard)
-                    })
-                    plusColor.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusColorCard)))
-                    plusColor.setOnClickListener(View.OnClickListener {
-                        setView(plusColorCard)
-                    })
-                    minusFill.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusFillCard)))
-                    minusFill.setOnClickListener(View.OnClickListener {
-                        setView(minusFillCard)
-                    })
-                    plusFill.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusFillCard)))
-                    plusFill.setOnClickListener(View.OnClickListener {
-                        setView(plusFillCard)
-                    })
-                    minusShape.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusShapeCard)))
-                    minusShape.setOnClickListener(View.OnClickListener {
-                        setView(minusShapeCard)
-                    })
-                    plusShape.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusShapeCard)))
-                    plusShape.setOnClickListener(View.OnClickListener {
-                        setView(plusShapeCard)
-                    })
-                }
-
-                cancel_text.setOnClickListener(View.OnClickListener {
-                    dialog.dismiss()
-                })
-
-                setView(CardValue(
-                        CardNumber.ONE,
-                        CardColor.GREEN,
-                        CardShading.SOLID,
-                        CardShape.DIAMOND))
-
-                dialog.show()
-            }
-        }
-
-        return super.onTouchEvent(event)
-    }
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
@@ -277,27 +148,27 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 var shiftX = 0
                 var label = result.getCategories()[0].label + " "
                 val crd = CardValue.fromString(result.getCategories()[0].label)
-                if (crd != null && thumbnailsBitmap != null) {
+                if (crd != null && thumbnailsBitmapHelper != null) {
                     // don't need label - we'll draw a picture instead
                     label = ""
-                    shiftX = thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
+                    shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
 
-                    val idx = getThumbIndx(crd)
-                    val column = getThumbColumn(idx)
-                    val row = getThumbRow(idx)
+                    val idx = thumbnailsBitmapHelper!!.getThumbIndx(crd)
+                    val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
+                    val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
 
                     val src = Rect(
-                            thumbnailsBitmap!!.width / 9 * column,
-                            thumbnailsBitmap!!.height / 9 * row,
-                            thumbnailsBitmap!!.width / 9 * (column + 1),
-                            thumbnailsBitmap!!.height / 9 * (row + 1))
+                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * column,
+                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * row,
+                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * (column + 1),
+                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * (row + 1))
                     val dst = RectF(
                             left,
                             top,
-                            left + thumbnailsBitmap!!.width / 9,
-                            top + thumbnailsBitmap!!.height / 9)
+                            left + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9,
+                            top + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9)
 
-                    canvas.drawBitmap(thumbnailsBitmap!!,
+                    canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap!!,
                             src,
                             dst,
                             textBackgroundPaint
@@ -336,6 +207,10 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         // PreviewView is in FILL_START mode. So we need to scale up the bounding box to match with
         // the size that the captured images will be displayed.
         scaleFactor = max(width * 1f / imageWidth, height * 1f / imageHeight)
+    }
+
+    fun setOnTouchListener(open: View.OnTouchListener?, function: (View?, MotionEvent?) -> Boolean) {
+
     }
 
     companion object {

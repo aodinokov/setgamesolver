@@ -31,6 +31,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -136,6 +137,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         if (event != null && override_dialog != null) {
             val dialog = override_dialog!!
             if (event.action == MotionEvent.ACTION_DOWN) {
+                // TODO: find if we pressed within any detected card? if so - propose to override
+
                 //Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
                 dialog.setContentView(R.layout.card_override_dialog)
                 dialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -144,19 +147,72 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 val okay_text = dialog.findViewById<TextView>(R.id.okay_text)
                 val cancel_text = dialog.findViewById<TextView>(R.id.cancel_text)
 
+                // variations per axis
+                val minusCount = dialog.findViewById<ImageButton>(R.id.minus_count)
+                val plusCount = dialog.findViewById<ImageButton>(R.id.plus_count)
+                val minusColor = dialog.findViewById<ImageButton>(R.id.minus_color)
+                val plusColor = dialog.findViewById<ImageButton>(R.id.plus_color)
+                val minusFill = dialog.findViewById<ImageButton>(R.id.minus_fill)
+                val plusFill = dialog.findViewById<ImageButton>(R.id.plus_fill)
+                val minusShape = dialog.findViewById<ImageButton>(R.id.minus_shape)
+                val plusShape = dialog.findViewById<ImageButton>(R.id.plus_shape)
+
+                fun setView(currentCard: Card) {
+                    val current = dialog.findViewById<ImageView>(R.id.current)
+                    current.setImageBitmap(getSingleThumbBitmap(getThumbIndx(currentCard)))
+                    // their values
+                    val minusCountCard = Card(CardCountMinus(currentCard.count), currentCard.cardColor, currentCard.cardFill, currentCard.cardShape)
+                    val plusCountCard = Card(CardCountPlus(currentCard.count), currentCard.cardColor, currentCard.cardFill, currentCard.cardShape)
+                    val minusColorCard = Card(currentCard.count, CardColorMinus(currentCard.cardColor), currentCard.cardFill, currentCard.cardShape)
+                    val plusColorCard = Card(currentCard.count, CardColorPlus(currentCard.cardColor), currentCard.cardFill, currentCard.cardShape)
+                    val minusFillCard = Card(currentCard.count, currentCard.cardColor, CardFillMinus(currentCard.cardFill), currentCard.cardShape)
+                    val plusFillCard = Card(currentCard.count, currentCard.cardColor, CardFillPlus(currentCard.cardFill), currentCard.cardShape)
+                    val minusShapeCard = Card(currentCard.count, currentCard.cardColor, currentCard.cardFill, CardShapeMinus(currentCard.cardShape))
+                    val plusShapeCard = Card(currentCard.count, currentCard.cardColor, currentCard.cardFill, CardShapePlus(currentCard.cardShape))
+                    // set the picture
+                    minusCount.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusCountCard)))
+                    minusCount.setOnClickListener(View.OnClickListener {
+                        setView(minusCountCard)
+                    })
+                    plusCount.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusCountCard)))
+                    plusCount.setOnClickListener(View.OnClickListener {
+                        setView(plusCountCard)
+                    })
+                    minusColor.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusColorCard)))
+                    minusColor.setOnClickListener(View.OnClickListener {
+                        setView(minusColorCard)
+                    })
+                    plusColor.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusColorCard)))
+                    plusColor.setOnClickListener(View.OnClickListener {
+                        setView(plusColorCard)
+                    })
+                    minusFill.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusFillCard)))
+                    minusFill.setOnClickListener(View.OnClickListener {
+                        setView(minusFillCard)
+                    })
+                    plusFill.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusFillCard)))
+                    plusFill.setOnClickListener(View.OnClickListener {
+                        setView(plusFillCard)
+                    })
+                    minusShape.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusShapeCard)))
+                    minusShape.setOnClickListener(View.OnClickListener {
+                        setView(minusShapeCard)
+                    })
+                    plusShape.setImageBitmap(getSingleThumbBitmap(getThumbIndx(plusShapeCard)))
+                    plusShape.setOnClickListener(View.OnClickListener {
+                        setView(plusShapeCard)
+                    })
+                }
+
                 cancel_text.setOnClickListener(View.OnClickListener {
                     dialog.dismiss()
                 })
 
-                // set
-                val btn = dialog.findViewById<ImageButton>(R.id.change_x)
-                val btnBitmap = getSingleThumbBitmap(getThumbIndx(Card(
+                setView(Card(
                         1,
                         CardColor.GREEN,
                         CardFill.SOLID,
-                        CardShape.DIAMOND)))
-                btn.setImageBitmap(btnBitmap)
-
+                        CardShape.DIAMOND))
 
                 dialog.show()
             }

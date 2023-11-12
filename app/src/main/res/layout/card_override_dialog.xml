@@ -11,12 +11,81 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="15dp"
+            android:layout_centerHorizontal="true">
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/change_x"
-            android:layout_width="@dimen/bottom_sheet_control_btn_size"
-            android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+        <TableLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true">
 
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/minus_fill"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/minus_count"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/plus_shape"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size" />
+
+            </TableRow>
+
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/minus_color"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+                <ImageView
+                    android:id="@+id/current"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/plus_color"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+            </TableRow>
+
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/minus_shape"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/plus_count"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/plus_fill"
+                    android:layout_width="@dimen/bottom_sheet_control_btn_size"
+                    android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+            </TableRow>
+        </TableLayout>
+        </RelativeLayout>
 
         <RelativeLayout
             android:layout_width="wrap_content"
@@ -37,6 +106,7 @@
                 android:text = "@string/label_cancel_btn" />
 
         </RelativeLayout>
+
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 

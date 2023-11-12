@@ -10,10 +10,28 @@ fun countFromString(input: String): Int? {
     return null
 }
 
+fun CardCountMinus(current: Int): Int {
+    return (((current - 1) + 2) % 3) + 1
+}
+fun CardCountPlus(current: Int): Int {
+    return (((current - 1) + 1) % 3) + 1
+}
+
+
 enum class CardColor(val code: Int) {
     RED(1),
     PURPLE(2),
-    GREEN(3),
+    GREEN(3);
+    companion object {
+        fun fromInt(value: Int) = CardColor.values().first { it.code == value}
+    }
+}
+
+fun CardColorMinus(current: CardColor): CardColor {
+    return CardColor.fromInt((((current.code - 1) + 2) % 3) + 1)
+}
+fun CardColorPlus(current: CardColor): CardColor {
+    return CardColor.fromInt((((current.code - 1) + 1) % 3) + 1)
 }
 
 fun colorFromString(input: String): CardColor? {
@@ -40,8 +58,20 @@ fun colorToString(input: CardColor): String {
 enum class CardFill(val code: Int) {
     SOLID(1),
     STRIPED(2),
-    EMPTY(3),
+    EMPTY(3);
+    companion object {
+        fun fromInt(value: Int) = CardFill.values().first { it.code == value}
+    }
 }
+
+fun CardFillMinus(current: CardFill): CardFill {
+    return CardFill.fromInt((((current.code - 1) + 2) % 3) + 1)
+}
+fun CardFillPlus(current: CardFill): CardFill {
+    return CardFill.fromInt((((current.code - 1) + 1) % 3) + 1)
+}
+
+
 
 fun fillFromString(input: String): CardFill? {
     if (input == "empty")
@@ -66,7 +96,17 @@ fun fillToString(input: CardFill): String {
 enum class CardShape(val code: Int) {
     SQUIGGLE(1),
     DIAMOND(2),
-    OVAL(3),
+    OVAL(3);
+    companion object {
+        fun fromInt(value: Int) = CardShape.values().first { it.code == value}
+    }
+}
+
+fun CardShapeMinus(current: CardShape): CardShape {
+    return CardShape.fromInt((((current.code - 1) + 2) % 3) + 1)
+}
+fun CardShapePlus(current: CardShape): CardShape {
+    return CardShape.fromInt((((current.code - 1) + 1) % 3) + 1)
 }
 
 fun shapeFromString(input: String): CardShape? {

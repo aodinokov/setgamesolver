@@ -18,16 +18,15 @@ enum class CardColor(val code: Int) {
     RED(1),
     PURPLE(2),
     GREEN(3);
+    override fun toString(): String {
+        return super.toString().lowercase()
+    }
     companion object {
         fun fromInt(value: Int) = CardColor.values().first { it.code == value}
+        fun fromString(value: String) = CardColor.values().first { it.toString().lowercase() == value.lowercase() }
+        fun previous(current: CardColor): CardColor {return CardColor.fromInt((((current.code - 1) + 2) % 3) + 1)}
+        fun next(current: CardColor): CardColor {return CardColor.fromInt((((current.code - 1) + 1) % 3) + 1)}
     }
-}
-
-fun cardColorMinus(current: CardColor): CardColor {
-    return CardColor.fromInt((((current.code - 1) + 2) % 3) + 1)
-}
-fun cardColorPlus(current: CardColor): CardColor {
-    return CardColor.fromInt((((current.code - 1) + 1) % 3) + 1)
 }
 
 fun cardColorFromString(input: String): CardColor? {
@@ -54,8 +53,12 @@ enum class CardShading(val code: Int) {
     SOLID(1),
     STRIPED(2),
     EMPTY(3); // or Outlined
+    override fun toString(): String {
+        return super.toString().lowercase()
+    }
     companion object {
         fun fromInt(value: Int) = CardShading.values().first { it.code == value}
+        fun fromString(value: String) = CardShading.values().first { it.toString().lowercase() == value.lowercase() }
     }
 }
 

@@ -162,8 +162,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                     // their values
                     val minusCountCard = CardValue(cardNumberMinus(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
                     val plusCountCard = CardValue(cardNumberPlus(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
-                    val minusColorCard = CardValue(currentCardValue.number, cardColorMinus(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
-                    val plusColorCard = CardValue(currentCardValue.number, cardColorPlus(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
+                    val minusColorCard = CardValue(currentCardValue.number, CardColor.previous(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
+                    val plusColorCard = CardValue(currentCardValue.number, CardColor.next(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
                     val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, cardShadingMinus(currentCardValue.shading), currentCardValue.shape)
                     val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, cardShadingPlus(currentCardValue.shading), currentCardValue.shape)
                     val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, cardShapeMinus(currentCardValue.shape))

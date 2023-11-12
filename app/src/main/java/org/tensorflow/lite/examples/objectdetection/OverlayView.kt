@@ -16,6 +16,7 @@
 
 package org.tensorflow.lite.examples.objectdetection
 
+import android.app.Dialog
 import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Bitmap
@@ -28,6 +29,9 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import java.util.LinkedList
@@ -49,7 +53,13 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     private var bounds = Rect()
 
+    private var override_dialog: Dialog? = null
+
     init {
+        if (context != null) {
+            override_dialog = Dialog(context)
+        }
+
         initPaints()
     }
 
@@ -95,11 +105,60 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     }
 
+    private fun getThumbIndx(crd: Card):Int {
+        val idx = (((crd.cardFill.code - 1) * 3 + (crd.cardShape.code - 1)) * 3 + (crd.cardColor.code - 1)) * 3 + (crd.count - 1)
+        assert(idx >= 0 && idx < 81)
+        return idx
+    }
+    private fun getThumbColumn(idx: Int): Int {
+        return idx % 9
+    }
+    private fun getThumbRow(idx: Int): Int {
+        return idx / 9
+    }
+    private fun getSingleThumbBitmap(idx: Int):Bitmap {
+        val column = getThumbColumn(idx)
+        val row = getThumbRow(idx)
+        val src = Rect(
+                thumbnailsBitmap!!.width / 9 * column,
+                thumbnailsBitmap!!.height / 9 * row,
+                thumbnailsBitmap!!.width / 9 * (column + 1),
+                thumbnailsBitmap!!.height / 9 * (row + 1))
+        return Bitmap.createBitmap(thumbnailsBitmap!!,
+                thumbnailsBitmap!!.width / 9 * column,
+                thumbnailsBitmap!!.height / 9 * row,
+                thumbnailsBitmap!!.width / 9,
+                thumbnailsBitmap!!.height / 9)
+    }
+
     override fun onTouchEvent(event: MotionEvent?): Boolean {
 
-        if (event != null) {
+        if (event != null && override_dialog != null) {
+            val dialog = override_dialog!!
             if (event.action == MotionEvent.ACTION_DOWN) {
-                Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
+                //Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
+                dialog.setContentView(R.layout.card_override_dialog)
+                dialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                dialog.setCancelable(false)
+
+                val okay_text = dialog.findViewById<TextView>(R.id.okay_text)
+                val cancel_text = dialog.findViewById<TextView>(R.id.cancel_text)
+
+                cancel_text.setOnClickListener(View.OnClickListener {
+                    dialog.dismiss()
+                })
+
+                // set
+                val btn = dialog.findViewById<ImageButton>(R.id.change_x)
+                val btnBitmap = getSingleThumbBitmap(getThumbIndx(Card(
+                        1,
+                        CardColor.GREEN,
+                        CardFill.SOLID,
+                        CardShape.DIAMOND)))
+                btn.setImageBitmap(btnBitmap)
+
+
+                dialog.show()
             }
         }
 
@@ -168,11 +227,9 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                     label = ""
                     shiftX = thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
 
-                    val idx = (((crd.cardFill.code - 1) * 3 + (crd.cardShape.code - 1)) * 3 + (crd.cardColor.code - 1)) * 3 + (crd.count - 1)
-                    assert(idx >= 0 && idx < 81)
-
-                    val column = idx % 9
-                    val row = idx / 9
+                    val idx = getThumbIndx(crd)
+                    val column = getThumbColumn(idx)
+                    val row = getThumbRow(idx)
 
                     val src = Rect(
                             thumbnailsBitmap!!.width / 9 * column,

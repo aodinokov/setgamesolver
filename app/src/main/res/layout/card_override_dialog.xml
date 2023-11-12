@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/resolution_dialog_background"
+    android:padding="@dimen/resolution_dialog_padding">
+
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/change_x"
+            android:layout_width="@dimen/bottom_sheet_control_btn_size"
+            android:layout_height="@dimen/bottom_sheet_control_btn_size"/>
+
+
+        <RelativeLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="15dp"
+            android:layout_centerHorizontal="true">
+
+            <Button
+                android:id="@+id/okay_text"
+                android:layout_width="@dimen/resolution_dialog_buttons_width"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ok_btn" />
+            <Button
+                android:id="@+id/cancel_text"
+                android:layout_width="@dimen/resolution_dialog_buttons_width"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:text = "@string/label_cancel_btn" />
+
+        </RelativeLayout>
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+</RelativeLayout>

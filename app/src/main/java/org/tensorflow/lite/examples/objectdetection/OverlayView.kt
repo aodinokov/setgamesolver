@@ -106,7 +106,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
     }
 
     private fun getThumbIndx(crd: CardValue):Int {
-        val idx = (((crd.shading.code - 1) * 3 + (crd.shape.code - 1)) * 3 + (crd.color.code - 1)) * 3 + (crd.number - 1)
+        val idx = (((crd.shading.code - 1) * 3 + (crd.shape.code - 1)) * 3 + (crd.color.code - 1)) * 3 + (crd.number.code - 1)
         assert(idx >= 0 && idx < 81)
         return idx
     }
@@ -160,14 +160,14 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                     val current = dialog.findViewById<ImageView>(R.id.current)
                     current.setImageBitmap(getSingleThumbBitmap(getThumbIndx(currentCardValue)))
                     // their values
-                    val minusCountCard = CardValue(cardNumberMinus(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
-                    val plusCountCard = CardValue(cardNumberPlus(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
+                    val minusCountCard = CardValue(CardNumber.previous(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
+                    val plusCountCard = CardValue(CardNumber.next(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
                     val minusColorCard = CardValue(currentCardValue.number, CardColor.previous(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
                     val plusColorCard = CardValue(currentCardValue.number, CardColor.next(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
-                    val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, cardShadingMinus(currentCardValue.shading), currentCardValue.shape)
-                    val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, cardShadingPlus(currentCardValue.shading), currentCardValue.shape)
-                    val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, cardShapeMinus(currentCardValue.shape))
-                    val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, cardShapePlus(currentCardValue.shape))
+                    val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.previous(currentCardValue.shading), currentCardValue.shape)
+                    val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.next(currentCardValue.shading), currentCardValue.shape)
+                    val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.previous(currentCardValue.shape))
+                    val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
                     // set the picture
                     minusCount.setImageBitmap(getSingleThumbBitmap(getThumbIndx(minusCountCard)))
                     minusCount.setOnClickListener(View.OnClickListener {
@@ -208,7 +208,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 })
 
                 setView(CardValue(
-                        1,
+                        CardNumber.ONE,
                         CardColor.GREEN,
                         CardShading.SOLID,
                         CardShape.DIAMOND))
@@ -276,7 +276,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 // Create text to display alongside detected objects
                 var shiftX = 0
                 var label = result.getCategories()[0].label + " "
-                val crd = cardValueFromString(result.getCategories()[0].label)
+                val crd = CardValue.fromString(result.getCategories()[0].label)
                 if (crd != null && thumbnailsBitmap != null) {
                     // don't need label - we'll draw a picture instead
                     label = ""

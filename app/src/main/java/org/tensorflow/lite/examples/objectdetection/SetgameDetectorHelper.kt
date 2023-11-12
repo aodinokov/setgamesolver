@@ -897,13 +897,14 @@ class SetgameDetectorHelper(
         cards.addAll(newCards)
     }
     fun findSets(): Boolean {
-        var vCardsByName = HashMap<CardValue,ViewCard>()
-        var inSet = HashSet<CardValue>()
+        var vCardsByName = HashMap<AbstractCard,ViewCard>()
+        var inSet = HashSet<AbstractCard>()
         // store all cards to set
         for (vCard in cards) {
-            var card = cardValueFromString(vCard.name())
+            var cardVal = CardValue.fromString(vCard.name())
             // add only classified cards
-            if (card != null) {
+            if (cardVal != null) {
+                val card = SimpleCard(cardVal)
                 inSet.add(card)
                 vCardsByName.put(card, vCard)
             }

@@ -239,7 +239,7 @@ class ViewCard(var x: Detected):  Grouppable(){
         return SystemClock.uptimeMillis() - detectedTime < 500
     }
 
-    // Grouppable interface impl
+    // Group-able interface impl
     override fun getGroupIds(): Set<Int> {
         return groups
     }
@@ -579,15 +579,15 @@ class SetgameDetectorHelper(
             }
         }
 
-        // filter by bitmap limitaion (we could ajust them though)
-        // the initial rect somtimes may have negative left/top or
+        // filter by bitmap limitation (we could adjust them though)
+        // the initial rect sometimes may have negative left/top or
         // too big right/bottom
         if (left < 0) left = 0
         if (right > image.width) right = image.width
         if (top < 0 ) top = 0
         if (bottom > image.height) bottom = image.height
 
-        // those are not changable
+        // those are not changeable
         val width = right - left
         val height = bottom - top
 
@@ -609,7 +609,7 @@ class SetgameDetectorHelper(
                 ", left: " + left.toString()+
                 ", top: "+ top.toString()+
                 ", width: " + width.toString() +
-                ", heigth: " + height.toString()})
+                ", height: " + height.toString()})
 
         buffer.width = width
         buffer.height = height
@@ -828,7 +828,7 @@ class SetgameDetectorHelper(
                     cards.remove(card)
                     reDetectedCards.add(card)
 
-                    // mark as re-detected & udpdate all info
+                    // mark as re-detected & update all info
                     card.markReDetected(det)
 
                     continue@outer
@@ -897,11 +897,11 @@ class SetgameDetectorHelper(
         cards.addAll(newCards)
     }
     fun findSets(): Boolean {
-        var vCardsByName = HashMap<Card,ViewCard>()
-        var inSet = HashSet<Card>()
+        var vCardsByName = HashMap<CardValue,ViewCard>()
+        var inSet = HashSet<CardValue>()
         // store all cards to set
         for (vCard in cards) {
-            var card = cardFromString(vCard.name())
+            var card = cardValueFromString(vCard.name())
             // add only classified cards
             if (card != null) {
                 inSet.add(card)
@@ -909,7 +909,7 @@ class SetgameDetectorHelper(
             }
         }
 
-        var solutions = findAllSolutions(inSet)
+        var solutions = findAllSetCombination(inSet)
 
         // clean groups
         for (vCard in cards) {
@@ -921,7 +921,7 @@ class SetgameDetectorHelper(
             // TODO: how to keep the same group from scan to scan?
             var groupId = 0
             for (g in solutions) {
-                for (c in g.cards) {
+                for (c in g.cardValues) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
                     assert(vCard != null)
@@ -936,10 +936,10 @@ class SetgameDetectorHelper(
         }
         // mode 2
         var groupId = 0
-        for (ss in findAllNonOverlappingSolutions(solutions)) {
+        for (ss in findAllNonOverlappingSetCombination(solutions)) {
             // for each solutionset
             for (s in ss) {
-                for (c in s.cards) {
+                for (c in s.cardValues) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
                     assert(vCard != null)

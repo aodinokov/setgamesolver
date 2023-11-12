@@ -1,22 +1,18 @@
 package org.tensorflow.lite.examples.objectdetection
 
-fun countFromString(input: String): Int? {
-    if (input == "1")
-        return 1
-    if (input == "2")
-        return 2
-    if (input == "3")
-        return 3
+fun cardNumberFromString(input: String): Int? {
+    val res = input.toInt()
+    if (res in 1..3)
+        return res
     return null
 }
 
-fun CardCountMinus(current: Int): Int {
+fun cardNumberMinus(current: Int): Int {
     return (((current - 1) + 2) % 3) + 1
 }
-fun CardCountPlus(current: Int): Int {
+fun cardNumberPlus(current: Int): Int {
     return (((current - 1) + 1) % 3) + 1
 }
-
 
 enum class CardColor(val code: Int) {
     RED(1),
@@ -27,14 +23,14 @@ enum class CardColor(val code: Int) {
     }
 }
 
-fun CardColorMinus(current: CardColor): CardColor {
+fun cardColorMinus(current: CardColor): CardColor {
     return CardColor.fromInt((((current.code - 1) + 2) % 3) + 1)
 }
-fun CardColorPlus(current: CardColor): CardColor {
+fun cardColorPlus(current: CardColor): CardColor {
     return CardColor.fromInt((((current.code - 1) + 1) % 3) + 1)
 }
 
-fun colorFromString(input: String): CardColor? {
+fun cardColorFromString(input: String): CardColor? {
     if (input == "red")
         return CardColor.RED
     if (input == "green")
@@ -44,7 +40,7 @@ fun colorFromString(input: String): CardColor? {
     return null
 }
 
-fun colorToString(input: CardColor): String {
+fun cardColorToString(input: CardColor): String {
     if (input == CardColor.RED)
         return "red"
     if (input == CardColor.GREEN)
@@ -54,41 +50,38 @@ fun colorToString(input: CardColor): String {
     return ""
 }
 
-
-enum class CardFill(val code: Int) {
+enum class CardShading(val code: Int) {
     SOLID(1),
     STRIPED(2),
-    EMPTY(3);
+    EMPTY(3); // or Outlined
     companion object {
-        fun fromInt(value: Int) = CardFill.values().first { it.code == value}
+        fun fromInt(value: Int) = CardShading.values().first { it.code == value}
     }
 }
 
-fun CardFillMinus(current: CardFill): CardFill {
-    return CardFill.fromInt((((current.code - 1) + 2) % 3) + 1)
+fun cardShadingMinus(current: CardShading): CardShading {
+    return CardShading.fromInt((((current.code - 1) + 2) % 3) + 1)
 }
-fun CardFillPlus(current: CardFill): CardFill {
-    return CardFill.fromInt((((current.code - 1) + 1) % 3) + 1)
+fun cardShadingPlus(current: CardShading): CardShading {
+    return CardShading.fromInt((((current.code - 1) + 1) % 3) + 1)
 }
 
-
-
-fun fillFromString(input: String): CardFill? {
+fun cardShadingFromString(input: String): CardShading? {
     if (input == "empty")
-        return CardFill.EMPTY
+        return CardShading.EMPTY
     if (input == "striped")
-        return CardFill.STRIPED
+        return CardShading.STRIPED
     if (input == "solid")
-        return CardFill.SOLID
+        return CardShading.SOLID
     return null
 }
 
-fun fillToString(input: CardFill): String {
-    if (input == CardFill.EMPTY)
+fun cardShadingToString(input: CardShading): String {
+    if (input == CardShading.EMPTY)
         return "empty"
-    if (input == CardFill.STRIPED)
+    if (input == CardShading.STRIPED)
         return "striped"
-    if (input == CardFill.SOLID)
+    if (input == CardShading.SOLID)
         return "solid"
     return ""
 }
@@ -102,14 +95,14 @@ enum class CardShape(val code: Int) {
     }
 }
 
-fun CardShapeMinus(current: CardShape): CardShape {
+fun cardShapeMinus(current: CardShape): CardShape {
     return CardShape.fromInt((((current.code - 1) + 2) % 3) + 1)
 }
-fun CardShapePlus(current: CardShape): CardShape {
+fun cardShapePlus(current: CardShape): CardShape {
     return CardShape.fromInt((((current.code - 1) + 1) % 3) + 1)
 }
 
-fun shapeFromString(input: String): CardShape? {
+fun cardShapeFromString(input: String): CardShape? {
     if (    input == "oval" ||
             input == "ovals")
         return CardShape.OVAL
@@ -122,7 +115,7 @@ fun shapeFromString(input: String): CardShape? {
     return null
 }
 
-fun shapeFromString(n: Int, input: CardShape): String {
+fun cardShapeToString(n: Int, input: CardShape): String {
     if (n>1) {
         if (input == CardShape.OVAL)return "oval"
         if (input == CardShape.DIAMOND)return "diamond"
@@ -135,54 +128,55 @@ fun shapeFromString(n: Int, input: CardShape): String {
     return ""
 }
 
-data class Card(val count: Int, var cardColor: CardColor, var cardFill: CardFill, var cardShape: CardShape)
-data class Solution(var cards: Set<Card>)
+data class CardValue(val number: Int, var color: CardColor, var shading: CardShading, var shape: CardShape)
+fun cardValueToString(cardValue: CardValue): String {
+    return String.format("%d-%s-%s-%s",
+            cardValue.number,
+            cardColorToString(cardValue.color),
+            cardShadingToString(cardValue.shading),
+            cardShapeToString(cardValue.number, cardValue.shape)
+    )
+}
 
-fun cardFromString(input: String): Card? {
+fun cardValueFromString(input: String): CardValue? {
     val parts = input.split("-", ignoreCase=true, limit = 4)
     if (parts.size != 4) {
         return null
     }
-    val count: Int = countFromString(parts.elementAt(0)) ?: return null
-    val cardColor: CardColor = colorFromString(parts.elementAt(1)) ?: return null
-    val cardFill: CardFill = fillFromString(parts.elementAt(2)) ?: return null
-    val cardShape: CardShape = shapeFromString(parts.elementAt(3)) ?: return null
-    return Card(count, cardColor, cardFill, cardShape)
+    val count: Int = cardNumberFromString(parts.elementAt(0)) ?: return null
+    val cardColor: CardColor = cardColorFromString(parts.elementAt(1)) ?: return null
+    val cardShading: CardShading = cardShadingFromString(parts.elementAt(2)) ?: return null
+    val cardShape: CardShape = cardShapeFromString(parts.elementAt(3)) ?: return null
+    return CardValue(count, cardColor, cardShading, cardShape)
 }
 
-fun cardToString(crd: Card): String {
-    return String.format("%d-%s-%s-%s",
-            crd.count,
-            colorToString(crd.cardColor),
-            fillToString(crd.cardFill),
-            shapeFromString(crd.count, crd.cardShape)
-            )
-}
+// Note: we call SETS as SetCombination in our model
+data class SetCombination(var cardValues: Set<CardValue>)
 
 /**
  * Convert the input set of card into list of sets 3 cards per each
  * based on the rules of the game
  */
-fun findAllSolutions(input: Set<Card>): Set<Solution> {
-    val result = HashSet<Solution>()
-    for(i in 0..(input.size-1)) {
+fun findAllSetCombination(input: Set<CardValue>): Set<SetCombination> {
+    val result = HashSet<SetCombination>()
+    for(i in input.indices) {
         val c0 = input.elementAt(i)
-        for (j in i+1 .. (input.size-1)) {
+        for (j in i+1 until input.size) {
             val c1 = input.elementAt(j)
-            for (k in j+1 .. (input.size-1)) {
+            for (k in j+1 until input.size) {
                 val c2 = input.elementAt(k)
 
-                val count = c0.count + c1.count + c2.count
-                val color = c0.cardColor.code + c1.cardColor.code + c2.cardColor.code
-                val fill = c0.cardFill.code + c1.cardFill.code + c2.cardFill.code
-                val shape = c0.cardShape.code + c1.cardShape.code +c2.cardShape.code
+                val count = c0.number + c1.number + c2.number
+                val color = c0.color.code + c1.color.code + c2.color.code
+                val shading = c0.shading.code + c1.shading.code + c2.shading.code
+                val shape = c0.shape.code + c1.shape.code +c2.shape.code
 
                 if (    count%3 == 0 &&
                         color%3 == 0 &&
-                        fill%3 == 0 &&
+                        shading%3 == 0 &&
                         shape%3 == 0) {
-                    val solution = Solution(cards = setOf(c0, c1, c2))
-                    result.add(solution)
+                    val setCombination = SetCombination(cardValues = setOf(c0, c1, c2))
+                    result.add(setCombination)
                 }
             }
         }
@@ -195,15 +189,15 @@ fun findAllSolutions(input: Set<Card>): Set<Solution> {
  *  This function tries to find a combination of sets with maximum number of sets.
  *  If there are several such combinations - it returns all (that's why it returns the list)
  */
-fun findAllNonOverlappingSolutions(input: Set<Solution>): List<Set<Solution>> {
-    for (i in 0..(input.size-1)) {
-        for (j in i+1 .. (input.size-1)) {
+fun findAllNonOverlappingSetCombination(input: Set<SetCombination>): List<Set<SetCombination>> {
+    for (i in input.indices) {
+        for (j in i+1 until input.size) {
             if (areSolutionsOverlap(input.elementAt(i), input.elementAt(j))) {
                 // build 2 subsets and check them separately
-                val res1: List<Set<Solution>> =
-                    findAllNonOverlappingSolutions(input.minus(input.elementAt(j)))
-                val res2: List<Set<Solution>> =
-                    findAllNonOverlappingSolutions(input.minus(input.elementAt(i)))
+                val res1: List<Set<SetCombination>> =
+                    findAllNonOverlappingSetCombination(input.minus(input.elementAt(j)))
+                val res2: List<Set<SetCombination>> =
+                    findAllNonOverlappingSetCombination(input.minus(input.elementAt(i)))
 
                 // we assume that result has at least 1 element. This must be always true
                 assert(res1.isNotEmpty())
@@ -222,13 +216,13 @@ fun findAllNonOverlappingSolutions(input: Set<Solution>): List<Set<Solution>> {
             }
         }
     }
-    // we didn't find any overlaps - we have a ready solution
+    // we didn't find any overlaps - we have a ready SET
     return listOf(input)
 }
 
-fun areSolutionsOverlap(s1: Solution, s2: Solution): Boolean {
-    for (c in s1.cards) {
-        if (s2.cards.contains(c)) {
+fun areSolutionsOverlap(s1: SetCombination, s2: SetCombination): Boolean {
+    for (c in s1.cardValues) {
+        if (s2.cardValues.contains(c)) {
             return true
         }
     }

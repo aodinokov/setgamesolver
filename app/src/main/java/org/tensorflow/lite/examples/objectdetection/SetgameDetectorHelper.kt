@@ -922,7 +922,7 @@ class SetgameDetectorHelper(
             // TODO: how to keep the same group from scan to scan?
             var groupId = 0
             for (g in solutions) {
-                for (c in g.cardValues) {
+                for (c in g.cards) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
                     assert(vCard != null)
@@ -940,7 +940,7 @@ class SetgameDetectorHelper(
         for (ss in findAllNonOverlappingSetCombination(solutions)) {
             // for each solutionset
             for (s in ss) {
-                for (c in s.cardValues) {
+                for (c in s.cards) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
                     assert(vCard != null)

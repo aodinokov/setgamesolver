@@ -121,15 +121,15 @@ class ThumbnailsBitmapHelper(
         val column = getThumbColumn(idx)
         val row = getThumbRow(idx)
         val src = Rect(
-                thumbnailsBitmap!!.width / 9 * column,
-                thumbnailsBitmap!!.height / 9 * row,
-                thumbnailsBitmap!!.width / 9 * (column + 1),
-                thumbnailsBitmap!!.height / 9 * (row + 1))
-        return Bitmap.createBitmap(thumbnailsBitmap!!,
-                thumbnailsBitmap!!.width / 9 * column,
-                thumbnailsBitmap!!.height / 9 * row,
-                thumbnailsBitmap!!.width / 9,
-                thumbnailsBitmap!!.height / 9)
+                thumbnailsBitmap.width / 9 * column,
+                thumbnailsBitmap.height / 9 * row,
+                thumbnailsBitmap.width / 9 * (column + 1),
+                thumbnailsBitmap.height / 9 * (row + 1))
+        return Bitmap.createBitmap(thumbnailsBitmap,
+                thumbnailsBitmap.width / 9 * column,
+                thumbnailsBitmap.height / 9 * row,
+                thumbnailsBitmap.width / 9,
+                thumbnailsBitmap.height / 9)
     }
 }
 
@@ -273,7 +273,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     }
                 }
 
-
         // When clicked, lower detection score threshold floor
         fragmentCameraBinding.bottomSheetLayout.detThresholdMinus.setOnClickListener {
             if (setgameDetectorHelper.detThreshold >= 0.1) {
@@ -327,7 +326,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             }
         }
 
-
         // When clicked, decrease the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsMinus.setOnClickListener {
             if (setgameDetectorHelper.numThreads > 1) {
@@ -376,7 +374,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     /* no op */
                 }
             }
-
 
         fragmentCameraBinding.bottomSheetLayout.startstopButton.setOnClickListener {
             /* update button*/
@@ -614,7 +611,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             if (event != null && thumbnailsBitmapHelper != null) {
                 val dialog = overrideDialog
                 if (event.action == MotionEvent.ACTION_DOWN) {
-                    //Toast.makeText(context, (event.rawX/scaleFactor).toString()+ ", "+ (event.rawY/scaleFactor).toString() +" touched", Toast.LENGTH_SHORT).show()
                     overrideDialog.setContentView(R.layout.card_override_dialog)
                     overrideDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                     overrideDialog.setCancelable(false)
@@ -683,14 +679,24 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                         overrideDialog.dismiss()
                     })
 
-                    // TODO: find if we pressed within any detected card? if so - propose to override
-                    setView(CardValue(
-                            CardNumber.ONE,
-                            CardColor.GREEN,
-                            CardShading.SOLID,
-                            CardShape.DIAMOND))
+                    // find if we pressed within any detected card? if so - propose to override
+                    for (result in results) {
+                        // check that it's a card at all
+                        val crd = CardValue.fromString(result.getCategories()[0].label) ?: continue
 
-                    overrideDialog.show()
+                        val boundingBox = result.getBoundingBox()
+                        val top = boundingBox.top * scaleFactor
+                        val bottom = boundingBox.bottom * scaleFactor
+                        val left = boundingBox.left * scaleFactor
+                        val right = boundingBox.right * scaleFactor
+
+                        if (event.rawX > left && event.rawX < right &&
+                                event.rawY > top && event.rawY < bottom) {
+                            setView(crd)
+                            overrideDialog.show()
+                            break
+                        }
+                    }
                 }
             }
             return@OnTouchListener true
@@ -699,7 +705,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
     // Update the values displayed in the bottom sheet. Reset detector.
     private fun updateTextControlsUi() {
-
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsValue.text =
             setgameDetectorHelper.detMaxResults.toString()
         fragmentCameraBinding.bottomSheetLayout.detThresholdValue.text =

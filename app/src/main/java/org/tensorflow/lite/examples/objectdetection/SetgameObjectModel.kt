@@ -155,9 +155,11 @@ class SimpleCard(val v: CardValue): AbstractCard() {
 }
 
 // Note: we call SETS as SetCombination in our model
-data class SetCombination(val cardValues: Set<AbstractCard>) {
+data class SetCombination(val cards: Set<AbstractCard>) {
     override fun toString(): String {
-        val sorted = cardValues.sortedBy {
+        // sort them within the set
+        // so we could compare string names to compare combinations
+        val sorted = cards.sortedBy {
             it.getValue().number.code*27 +
                     it.getValue().color.code * 9 +
                     it.getValue().shading.code * 3 +
@@ -196,7 +198,7 @@ fun findAllSetCombination(input: Set<AbstractCard>): Set<SetCombination> {
                         color%3 == 0 &&
                         shading%3 == 0 &&
                         shape%3 == 0) {
-                    val setCombination = SetCombination(cardValues = setOf(c0, c1, c2))
+                    val setCombination = SetCombination(cards = setOf(c0, c1, c2))
                     result.add(setCombination)
                 }
             }
@@ -242,8 +244,8 @@ fun findAllNonOverlappingSetCombination(input: Set<SetCombination>): List<Set<Se
 }
 
 fun areSolutionsOverlap(s1: SetCombination, s2: SetCombination): Boolean {
-    for (c in s1.cardValues) {
-        if (s2.cardValues.contains(c)) {
+    for (c in s1.cards) {
+        if (s2.cards.contains(c)) {
             return true
         }
     }

@@ -24,6 +24,9 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
@@ -61,6 +64,7 @@ import org.tensorflow.lite.examples.objectdetection.CardShape
 import org.tensorflow.lite.examples.objectdetection.CardValue
 import org.tensorflow.lite.examples.objectdetection.Detected
 import org.tensorflow.lite.examples.objectdetection.DetectorMode
+import org.tensorflow.lite.examples.objectdetection.OverlayView
 import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
@@ -68,7 +72,10 @@ import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.pow
-
+import kotlin.math.max
+import android.content.res.TypedArray
+import android.graphics.RectF
+import org.tensorflow.lite.examples.objectdetection.Grouppable
 
 /**
  * 9x9 Bitmap with adjustable order
@@ -100,8 +107,8 @@ class ThumbnailsBitmapHelper(
                 color * 3.0.pow(colorWeight).toInt() +
                 shading * 3.0.pow(shadingWeight).toInt() +
                 shape * 3.0.pow(shapeWeight).toInt()
+        assert(idx in 0..80)
 
-        assert(idx >= 0 && idx < 81)
         return idx
     }
     fun getThumbColumn(idx: Int): Int {
@@ -166,7 +173,18 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     /** Blocking camera operations are performed using this executor */
     private lateinit var cameraExecutor: ExecutorService
 
+    /** overlay data */
+    private var showDetections: Boolean = false
+    private var scaleFactor: Float = 1f
+    private var inferenceTime: Long = 0
+    private var results: List<Detected> = LinkedList<Detected>()
+
+    /** overlay painting helper objects*/
     private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
+
+    companion object {
+        private const val BOUNDING_RECT_TEXT_PADDING = 8
+    }
 
     override fun onResume() {
         super.onResume()
@@ -212,7 +230,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     shadingMap = mapOf<Int,Int>(Pair(0,2),Pair(1,0),Pair(2,1)),
                     shapeMap = mapOf<Int,Int>(Pair(0,1),Pair(1,2),Pair(2,0)))
         }
-        fragmentCameraBinding.overlay.setThumbnailsBitmapHelper(thumbnailsBitmapHelper)
 
         setgameDetectorHelper = SetgameDetectorHelper(
             context = requireContext(),
@@ -452,6 +469,146 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             resolutionDialog.show()
         }
 
+        // overlay draw procedure
+        fragmentCameraBinding.overlay.setOnDrawListener(object : OverlayView.DrawListener {
+            // colors
+            private var boxPaint = Paint()
+            private var textBackgroundPaint = Paint()
+            private var textPaint = Paint()
+            private var groupBoxPaintMap = HashMap<Int, Paint>()
+            // tmp
+            private var bounds = Rect()
+            init {
+                textBackgroundPaint.color = Color.BLACK
+                textBackgroundPaint.style = Paint.Style.FILL
+                textBackgroundPaint.textSize = 50f
+
+                textPaint.color = Color.WHITE
+                textPaint.style = Paint.Style.FILL
+                textPaint.textSize = 50f
+
+                boxPaint.color = ContextCompat.getColor(requireContext(), R.color.bounding_box_color)
+                boxPaint.strokeWidth = 8F
+                boxPaint.style = Paint.Style.STROKE
+
+                // init colors for groups
+                groupBoxPaintMap.clear()
+                val colors: TypedArray = resources.obtainTypedArray(R.array.groupColors)
+                for (i in 0 until colors.length()) {
+                    val p = Paint()
+                    p.color = colors.getColor(i, 0)
+                    p.strokeWidth = 8F
+                    p.style = Paint.Style.STROKE
+                    groupBoxPaintMap[i] = p
+                }
+                colors.recycle()
+            }
+            override fun onDraw(canvas: Canvas){
+                if (!showDetections)
+                    return
+
+                // show fps
+                val fpsTop = 0f
+                var fpsText = "fps:inf"
+                if (inferenceTime > 0) {
+                    // inferenceTime is in ms
+                    fpsText = String.format("fps:%2.0f", 1000.0/inferenceTime.toFloat())
+                }
+                // Draw rect behind display text
+                textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
+                val textWidth = bounds.width()
+                val textHeight = bounds.height()
+                canvas.drawRect(
+                        0f,
+                        fpsTop,
+                        0f + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                        fpsTop + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                        textBackgroundPaint
+                )
+                // Draw text for detected object
+                canvas.drawText(fpsText, 0f, fpsTop+bounds.height(), textPaint)
+
+                //show results
+                for (result in results) {
+                    val boundingBox = result.getBoundingBox()
+
+                    val top = boundingBox.top * scaleFactor
+                    val bottom = boundingBox.bottom * scaleFactor
+                    val left = boundingBox.left * scaleFactor
+                    val right = boundingBox.right * scaleFactor
+
+                    // Draw bounding box around detected objects
+                    val drawableRect = RectF(left, top, right, bottom)
+                    if (result is Grouppable) {
+                        for(groupId in result.getGroupIds()) {
+                            assert(groupBoxPaintMap.size > 0)
+                            val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
+                            canvas.drawRect(drawableRect, pb)
+                            // make all groups visible
+                            drawableRect.left -= pb.strokeWidth
+                            drawableRect.top -= pb.strokeWidth
+                            drawableRect.bottom += pb.strokeWidth
+                            drawableRect.right += pb.strokeWidth
+                        }
+                    }else{
+                        canvas.drawRect(drawableRect, boxPaint)
+                    }
+
+                    if (result.getCategories().size > 0) {
+                        // Create text to display alongside detected objects
+                        var shiftX = 0
+                        var label = result.getCategories()[0].label + " "
+                        val crd = CardValue.fromString(result.getCategories()[0].label)
+                        if (crd != null && thumbnailsBitmapHelper != null) {
+                            // don't need label - we'll draw a picture instead
+                            label = ""
+                            shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
+
+                            val idx = thumbnailsBitmapHelper!!.getThumbIndx(crd)
+                            val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
+                            val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
+
+                            val src = Rect(
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * column,
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * row,
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * (column + 1),
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * (row + 1))
+                            val dst = RectF(
+                                    left,
+                                    top,
+                                    left + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9,
+                                    top + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9)
+
+                            canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap!!,
+                                    src,
+                                    dst,
+                                    textBackgroundPaint
+                            )
+                        }
+
+                        val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
+
+                        // Draw rect behind display text
+                        textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
+                        val textWidth = bounds.width()
+                        val textHeight = bounds.height()
+                        canvas.drawRect(
+                                left + shiftX,
+                                top,
+                                left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                textBackgroundPaint
+                        )
+
+                        // Draw text for detected object
+                        canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
+                    }
+                }
+
+            }
+        })
+
+        // overlay touch dialog
         val overrideDialog = Dialog(requireContext())
         fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { view, event ->
             if (event != null && thumbnailsBitmapHelper != null) {
@@ -563,7 +720,9 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         // Needs to be cleared instead of reinitialized because the GPU
         // delegate needs to be initialized on the thread using it when applicable
         setgameDetectorHelper.clearObjectDetector()
-        fragmentCameraBinding.overlay.clear(setgameDetectorHelper.scanEnabled)
+        showDetections = setgameDetectorHelper.scanEnabled
+        fragmentCameraBinding.overlay.invalidate()
+        //TBD: fragmentCameraBinding.overlay.clear()
     }
 
     // restart app to apply new camera settings
@@ -872,10 +1031,10 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     // Update UI after objects have been detected. Extracts original image height/width
     // to scale and place bounding boxes properly through OverlayView
     override fun onResults(
-        results: MutableList<Detected>?,
-        inferenceTime: Long,
-        imageHeight: Int,
-        imageWidth: Int
+            results: MutableList<Detected>?,
+            inferenceTime: Long,
+            imageHeight: Int,
+            imageWidth: Int
     ) {
         // if button is enabled
         if(!setgameDetectorHelper.scanEnabled) {
@@ -883,14 +1042,13 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         }
 
         activity?.runOnUiThread {
+            this.inferenceTime = inferenceTime
+            this.results = results?: LinkedList<Detected>()
 
-            // Pass necessary information to OverlayView for drawing on the canvas
-            fragmentCameraBinding.overlay.setResults(
-                results ?: LinkedList<Detected>(),
-                    inferenceTime,
-                    imageHeight,
-                    imageWidth
-            )
+            // PreviewView is in FILL_START mode. So we need to scale up the bounding box to match with
+            // the size that the captured images will be displayed.
+            scaleFactor = max(fragmentCameraBinding.overlay.width * 1f / imageWidth,
+                    fragmentCameraBinding.overlay.height * 1f / imageHeight)
 
             // Force a redraw
             fragmentCameraBinding.overlay.invalidate()

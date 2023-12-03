@@ -17,203 +17,21 @@
 package org.tensorflow.lite.examples.objectdetection
 
 import android.content.Context
-import android.content.res.TypedArray
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Rect
-import android.graphics.RectF
 import android.util.AttributeSet
-import android.view.MotionEvent
 import android.view.View
-import androidx.core.content.ContextCompat
-import org.tensorflow.lite.examples.objectdetection.fragments.ThumbnailsBitmapHelper
-import java.util.LinkedList
-import kotlin.math.max
 
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
-    private var showDetections: Boolean = false
-
-    private var inferenceTime: Long = 0
-    private var results: List<Detected> = LinkedList<Detected>()
-    private var boxPaint = Paint()
-    private var textBackgroundPaint = Paint()
-    private var textPaint = Paint()
-    private var groupBoxPaintMap = HashMap<Int, Paint>()
-    private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
-
-    private var scaleFactor: Float = 1f
-
-    private var bounds = Rect()
-
-    init {
-        initPaints()
+    interface DrawListener {
+        fun onDraw(canvas: Canvas)
     }
-
-    fun clear(showDetectionVal: Boolean) {
-        showDetections = showDetectionVal
-
-        textPaint.reset()
-        textBackgroundPaint.reset()
-        boxPaint.reset()
-        invalidate()
-        initPaints()
+    var drawListener: DrawListener? = null
+    fun setOnDrawListener(listener: DrawListener) {
+        drawListener = listener
     }
-
-    fun setThumbnailsBitmapHelper(helper: ThumbnailsBitmapHelper?) {
-        thumbnailsBitmapHelper = helper
-    }
-
-    private fun initPaints() {
-        textBackgroundPaint.color = Color.BLACK
-        textBackgroundPaint.style = Paint.Style.FILL
-        textBackgroundPaint.textSize = 50f
-
-        textPaint.color = Color.WHITE
-        textPaint.style = Paint.Style.FILL
-        textPaint.textSize = 50f
-
-        boxPaint.color = ContextCompat.getColor(context!!, R.color.bounding_box_color)
-        boxPaint.strokeWidth = 8F
-        boxPaint.style = Paint.Style.STROKE
-
-        // init colors for groups
-        groupBoxPaintMap.clear()
-        val colors: TypedArray = resources.obtainTypedArray(R.array.groupColors)
-        for (i in 0 until colors.length()) {
-            var p = Paint()
-            p.color = colors.getColor(i, 0)
-            p.strokeWidth = 8F
-            p.style = Paint.Style.STROKE
-            groupBoxPaintMap[i] = p
-        }
-    }
-
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-
-        if (!showDetections)
-            return
-
-        // show fps
-        val fpsTop = 0f
-        var fpsText = "fps:inf"
-        if (inferenceTime > 0) {
-            // inferenceTime is in ms
-            fpsText = String.format("fps:%2.0f", 1000.0/inferenceTime.toFloat())
-        }
-        // Draw rect behind display text
-        textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
-        val textWidth = bounds.width()
-        val textHeight = bounds.height()
-        canvas.drawRect(
-                0f,
-                fpsTop,
-                0f + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                fpsTop + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
-                textBackgroundPaint
-        )
-        // Draw text for detected object
-        canvas.drawText(fpsText, 0f, fpsTop+bounds.height(), textPaint)
-
-        //show results
-        for (result in results) {
-            val boundingBox = result.getBoundingBox()
-
-            val top = boundingBox.top * scaleFactor
-            val bottom = boundingBox.bottom * scaleFactor
-            val left = boundingBox.left * scaleFactor
-            val right = boundingBox.right * scaleFactor
-
-            // Draw bounding box around detected objects
-            val drawableRect = RectF(left, top, right, bottom)
-            if (result is Grouppable) {
-                for(groupId in result.getGroupIds()) {
-                    assert(groupBoxPaintMap.size > 0)
-                    val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
-                    canvas.drawRect(drawableRect, pb)
-                    // make all groups visible
-                    drawableRect.left -= pb.strokeWidth
-                    drawableRect.top -= pb.strokeWidth
-                    drawableRect.bottom += pb.strokeWidth
-                    drawableRect.right += pb.strokeWidth
-                }
-            }else{
-                canvas.drawRect(drawableRect, boxPaint)
-            }
-
-            if (result.getCategories().size > 0) {
-                // Create text to display alongside detected objects
-                var shiftX = 0
-                var label = result.getCategories()[0].label + " "
-                val crd = CardValue.fromString(result.getCategories()[0].label)
-                if (crd != null && thumbnailsBitmapHelper != null) {
-                    // don't need label - we'll draw a picture instead
-                    label = ""
-                    shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
-
-                    val idx = thumbnailsBitmapHelper!!.getThumbIndx(crd)
-                    val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
-                    val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
-
-                    val src = Rect(
-                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * column,
-                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * row,
-                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * (column + 1),
-                            thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * (row + 1))
-                    val dst = RectF(
-                            left,
-                            top,
-                            left + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9,
-                            top + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9)
-
-                    canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap!!,
-                            src,
-                            dst,
-                            textBackgroundPaint
-                    )
-                }
-
-                val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
-
-                // Draw rect behind display text
-                textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
-                val textWidth = bounds.width()
-                val textHeight = bounds.height()
-                canvas.drawRect(
-                        left + shiftX,
-                        top,
-                        left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                        top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
-                        textBackgroundPaint
-                )
-
-                // Draw text for detected object
-                canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
-            }
-        }
-    }
-
-    fun setResults(
-      detectionResults: MutableList<Detected>,
-      detectionInferenceTime: Long,
-      imageHeight: Int,
-      imageWidth: Int,
-    ) {
-        inferenceTime = detectionInferenceTime
-        results = detectionResults
-
-        // PreviewView is in FILL_START mode. So we need to scale up the bounding box to match with
-        // the size that the captured images will be displayed.
-        scaleFactor = max(width * 1f / imageWidth, height * 1f / imageHeight)
-    }
-
-    fun setOnTouchListener(open: View.OnTouchListener?, function: (View?, MotionEvent?) -> Boolean) {
-
-    }
-
-    companion object {
-        private const val BOUNDING_RECT_TEXT_PADDING = 8
+        drawListener?.onDraw(canvas)
     }
 }

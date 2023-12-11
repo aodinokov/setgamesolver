@@ -818,38 +818,10 @@ class CameraFragment : Fragment(),
                     // Draw bounding box around detected objects
                     canvas.drawRect(RectF(left, top, right, bottom), boxPaint)
 
-                    if (result.getCategories().size > 0) {
+                    if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.getCategories().size > 0) {
                         // Create text to display alongside detected objects
                         var shiftX = 0
                         var label = result.getCategories()[0].label + " "
-                        val crd = CardValue.fromString(result.getCategories()[0].label)
-                        if (crd != null && thumbnailsBitmapHelper != null) {
-                            // don't need label - we'll draw a picture instead
-                            label = ""
-                            shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
-
-                            val idx = thumbnailsBitmapHelper!!.getThumbIndx(crd)
-                            val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
-                            val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
-
-                            val src = Rect(
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * column,
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * row,
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * (column + 1),
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * (row + 1))
-                            val dst = RectF(
-                                    left,
-                                    top,
-                                    left + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9,
-                                    top + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9)
-
-                            canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap!!,
-                                    src,
-                                    dst,
-                                    textBackgroundPaint
-                            )
-                        }
-
                         val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
 
                         // Draw rect behind display text

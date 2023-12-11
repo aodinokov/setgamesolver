@@ -639,6 +639,10 @@ class CameraFragment : Fragment(),
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
                     detectorHelper.currentModel = p2
                     detectorHelper.clearDetector()
+
+                    // it's better to clear it, because it's only relevant to setCards
+                    cards.clear()
+
                     updateTextControlsUi()
                     writePreferences()
                 }

@@ -62,20 +62,185 @@ import org.tensorflow.lite.examples.objectdetection.CardNumber
 import org.tensorflow.lite.examples.objectdetection.CardShading
 import org.tensorflow.lite.examples.objectdetection.CardShape
 import org.tensorflow.lite.examples.objectdetection.CardValue
-import org.tensorflow.lite.examples.objectdetection.Detected
-import org.tensorflow.lite.examples.objectdetection.DetectorMode
 import org.tensorflow.lite.examples.objectdetection.OverlayView
 import org.tensorflow.lite.examples.objectdetection.R
-import org.tensorflow.lite.examples.objectdetection.SetgameDetectorHelper
 import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.pow
-import kotlin.math.max
 import android.content.res.TypedArray
 import android.graphics.RectF
-import org.tensorflow.lite.examples.objectdetection.Grouppable
+import android.os.SystemClock
+import com.google.gson.Gson
+import org.tensorflow.lite.examples.objectdetection.AbstractCard
+import org.tensorflow.lite.examples.objectdetection.ClassifierHelper
+import org.tensorflow.lite.examples.objectdetection.DetectorHelper
+import org.tensorflow.lite.examples.objectdetection.SimpleCard
+import org.tensorflow.lite.examples.objectdetection.findAllNonOverlappingSetCombination
+import org.tensorflow.lite.examples.objectdetection.findAllSetCombination
+import org.tensorflow.lite.support.label.Category
+import org.tensorflow.lite.task.vision.detector.Detection
+import java.lang.Float.max
+import kotlin.math.absoluteValue
+
+enum class SetsFinderMode(val mode: Int) {
+    AllSets(0),
+    NonOverlappingSets(1),
+}
+
+data class BoundsTransformation(
+        var deltaX: Float,
+        var deltaY: Float,
+        var scaleX:Float,
+        var scaleY: Float)
+
+class ViewCard(var detection: Detection): AbstractCard() {
+    var detectedTime = SystemClock.uptimeMillis()
+
+    private var prevBounds: RectF? = null
+
+    lateinit var classifiedValue: CardValue
+    var overriddenValue: CardValue? = null
+
+    var classificationMax = Array<Category?>(4, {null})
+
+    override fun getValue(): CardValue {
+        if (overriddenValue != null)
+            return overriddenValue!!
+        return classifiedValue
+    }
+
+    // TBD: to remove
+    fun name(): String{
+//        if (overriddenName != null)
+//            return overriddenName.toString()
+
+        val cats = getAccumulatedClassifications()
+        if (cats != null && cats.size > 0) {
+            return cats[0].label
+        }
+
+        return ""
+    }
+
+    // TBD
+    public var groups = HashSet<Int>()
+    // Group-able interface impl
+    fun getGroupIds(): Set<Int> {
+        return groups
+    }
+
+    fun isWithinBorders(detection: Detection): Boolean {
+        val newBounds = detection.getBoundingBox()
+        // check if new bounds are in intersect with the arg
+        if ((this.detection.boundingBox.centerX() - newBounds.centerX()).absoluteValue < this.detection.boundingBox.width()/2 &&
+                (this.detection.boundingBox.centerY() - newBounds.centerY()).absoluteValue < this.detection.boundingBox.height()/2) {
+            return true
+        }
+        return false
+    }
+    fun updateDetection(detection: Detection) {
+        prevBounds = RectF(this.detection.boundingBox)
+        this.detection = detection
+    }
+    fun markReDetected(detection: Detection) {
+        updateDetection(detection)
+        detectedTime = SystemClock.uptimeMillis()
+    }
+    fun isDetectionOutdated():Boolean {
+        // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
+        return  SystemClock.uptimeMillis() - detectedTime < 2000
+    }
+
+    fun getBoundsTransformation(): BoundsTransformation? {
+        if (
+                prevBounds == null ||
+                prevBounds!!.width() == 0.0f ||
+                prevBounds!!.height() == 0.0f)
+            return null
+        return BoundsTransformation(
+                this.detection.boundingBox.centerX() - prevBounds!!.centerX(),
+                this.detection.boundingBox.centerY() - prevBounds!!.centerY(),
+                this.detection.boundingBox.width()/prevBounds!!.width(),
+                this.detection.boundingBox.height()/prevBounds!!.height()
+        )
+    }
+    fun applyBoundsTransformation(t: BoundsTransformation) {
+        prevBounds = RectF(this.detection.boundingBox)
+        val boundsTmp = RectF(
+                prevBounds!!.left + t.deltaX,
+                prevBounds!!.top + t.deltaY,
+                prevBounds!!.right + t.deltaX,
+                prevBounds!!.bottom + t.deltaY,
+        )
+        //now scale
+        this.detection.boundingBox.left = boundsTmp.centerX()-boundsTmp.width()*t.scaleX/2
+        this.detection.boundingBox.top = boundsTmp.centerY()-boundsTmp.height()*t.scaleX/2
+        this.detection.boundingBox.right = boundsTmp.centerX()+boundsTmp.width()*t.scaleX/2
+        this.detection.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
+    }
+
+    fun updateClassifications(newCategories: Array<MutableList<Category>>?) {
+        if (newCategories == null)
+            return
+        assert(newCategories.size == classificationMax.size)
+        for (i in 0 until classificationMax.size) {
+            if (newCategories[i].size == 0)
+                continue
+            val newCat = newCategories[i][0]
+            if (classificationMax[i] == null || classificationMax[i]!!.score <= newCat.score)
+                classificationMax[i] = newCat
+        }
+    }
+
+    fun getAccumulatedClassifications(): MutableList<Category>? {
+        if (classificationMax[0]!= null &&
+                classificationMax[1]!= null &&
+                classificationMax[2]!= null &&
+                classificationMax[3]!= null) {
+            var res = LinkedList<Category>()
+            res.add(Category(
+                    classificationMax[0]!!.label + "-" +
+                            classificationMax[1]!!.label + "-" +
+                            classificationMax[2]!!.label + "-" +
+                            classificationMax[3]!!.label,
+                    classificationMax[0]!!.score *
+                            classificationMax[1]!!.score *
+                            classificationMax[2]!!.score *
+                            classificationMax[3]!!.score))
+            return res
+        }
+        return null
+    }
+    fun getCategories(): MutableList<Category> {
+        val cats = getAccumulatedClassifications()
+        if (cats != null)
+            return cats!!
+
+        return detection.categories
+    }
+
+    fun isReClassifyCandidate(): Boolean {
+        return SystemClock.uptimeMillis() - detectedTime < 500
+    }
+}
+
+enum class DelegationMode(val mode: Int) {
+    Cpu(0),
+    Gpu(1),
+    Nnapi(2),
+    ;
+    companion object {
+        fun fromInt(value: Int): DelegationMode? {
+            return try {
+                DelegationMode.values().first { it.mode == value }
+            } catch (ex: NoSuchElementException) {
+                null
+            }
+        }
+    }
+}
 
 /**
  * 9x9 Bitmap with adjustable order
@@ -154,7 +319,9 @@ class SelectedCameraResolution(val parent: SelectedCamera,
     }
 }
 
-class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
+class CameraFragment : Fragment(),
+        DetectorHelper.DetectorErrorListener,
+        ClassifierHelper.ClassifierErrorListener {
 
     private val TAG = "ObjectDetection"
 
@@ -163,8 +330,11 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
 
-    private lateinit var setgameDetectorHelper: SetgameDetectorHelper
+    private lateinit var detectorHelper: DetectorHelper
+    private lateinit var classifierHelper: ClassifierHelper
+
     private lateinit var bitmapBuffer: Bitmap
+
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
@@ -173,14 +343,22 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     /** Blocking camera operations are performed using this executor */
     private lateinit var cameraExecutor: ExecutorService
 
-    /** overlay data */
-    private var showDetections: Boolean = false
+    private var scanIsInProgress: Boolean = false
+
+    /** overlay data to show*/
     private var scaleFactor: Float = 1f
     private var inferenceTime: Long = 0
-    private var results: List<Detected> = LinkedList<Detected>()
 
     /** overlay painting helper objects*/
     private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
+
+    /* raw data after detection */
+    private var rawDetectionResults: List<Detection> = LinkedList<Detection>()
+
+    private var setsFinderMode = SetsFinderMode.AllSets
+
+    // we're keeping cards so the they can be traced and overridden
+    private var cards = LinkedList<ViewCard>()
 
     companion object {
         private const val BOUNDING_RECT_TEXT_PADDING = 8
@@ -218,6 +396,11 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        detectorHelper = DetectorHelper(context = requireContext(), detectorErrorListener = this)
+        classifierHelper = ClassifierHelper(context = requireContext(), classifierErrorListener = this)
+
+        readPreferences()
+
         if (thumbnailsBitmapHelper == null) {
             val inputStream = resources.assets.open("setgame-cards.png")
             val thumbnailsBitmap = BitmapFactory.decodeStream(inputStream)
@@ -230,10 +413,6 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     shadingMap = mapOf<Int,Int>(Pair(0,2),Pair(1,0),Pair(2,1)),
                     shapeMap = mapOf<Int,Int>(Pair(0,1),Pair(1,2),Pair(2,0)))
         }
-
-        setgameDetectorHelper = SetgameDetectorHelper(
-            context = requireContext(),
-            objectDetectorListener = this)
 
         // Initialize our background executor
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -251,21 +430,93 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         updateTextControlsUi()
     }
 
+    // settings read/ write support
+    // add fun UnmarshalV<N>toState(yaml: String)  when needed
+    private fun unmarshalV1toState(jsonString: String) {
+        val gson = Gson()
+        val state = gson.fromJson(jsonString, Map::class.java)
+        if (state != null) {
+            // read to the settings with conversion
+            if (state.containsKey("setsFinderMode")) {
+                try {
+                    setsFinderMode = SetsFinderMode.valueOf(state["setsFinderMode"].toString())
+                }catch (e: IllegalArgumentException) { }
+            }
+            if (state.containsKey("detectorMode")){
+                detectorHelper.threshold = state["detThreshold"].toString().toFloat()
+            }
+            if (state.containsKey("detMaxResults")){
+                detectorHelper.maxResults = state["detMaxResults"].toString().toInt()
+            }
+            if (state.containsKey("classThreshold")){
+                classifierHelper.threshold = state["classThreshold"].toString().toFloat()
+            }
+            if (state.containsKey("numThreads")){
+                detectorHelper.numThreads = state["numThreads"].toString().toInt()
+                classifierHelper.numThreads = detectorHelper.numThreads
+            }
+            if (state.containsKey("currentDelegate")){
+                val currentDelegate = DelegationMode.fromInt(state["currentDelegate"].toString().toInt())
+                if (currentDelegate != null) {
+                    detectorHelper.currentDelegate = currentDelegate
+                    classifierHelper.currentDelegate = currentDelegate
+                }
+            }
+            if (state.containsKey("currentModel")){
+                detectorHelper.currentModel = state["currentModel"].toString().toInt()
+            }
+        }
+    }
+
+    private fun marshalV1toState(): String {
+        val gson = Gson()
+        val state = mutableMapOf<String, String>()
+        state["setsFinderMode"] = setsFinderMode.toString()
+        state["detThreshold"] = detectorHelper.threshold.toString()
+        state["detMaxResults"] = detectorHelper.maxResults.toString()
+        state["classThreshold"] = classifierHelper.threshold.toString()
+        state["numThreads"] = detectorHelper.numThreads.toString()
+        state["currentDelegate"] = detectorHelper.currentDelegate.mode.toString()
+        state["currentModel"] = detectorHelper.currentModel.toString()
+        return gson.toJson(state)
+    }
+
+    private fun readPreferences() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        // Retrieve a string value
+        val configVersion = preferences.getString("config_version", "")
+        val config = preferences.getString("config_json", "")
+        if (config != null) {
+            if (configVersion == "1") {
+                unmarshalV1toState(config)
+            }
+        }
+    }
+
+    private fun writePreferences() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val editor = preferences.edit()
+        editor.putString("config_version", "1")
+        editor.putString("config_json", marshalV1toState())
+        editor.apply()
+    }
+
+
     @SuppressLint("ClickableViewAccessibility")
     private fun initControlsUi() {
         // When clicked, change the underlying model used for object detection
-        fragmentCameraBinding.bottomSheetLayout.spinnerMode.setSelection(setgameDetectorHelper.detectorMode.mode, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerMode.setSelection(setsFinderMode.mode, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerMode.onItemSelectedListener =
                 object : AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                        setgameDetectorHelper.detectorMode =
+                        setsFinderMode =
                                 when (p2) {
-                                    0 -> DetectorMode.AllSets
-                                    1 -> DetectorMode.NonOverlappingSets
-                                    else -> DetectorMode.AllSets
+                                    0 -> SetsFinderMode.AllSets
+                                    1 -> SetsFinderMode.NonOverlappingSets
+                                    else -> SetsFinderMode.AllSets
                                 }
-                        setgameDetectorHelper.WritePreferences()
                         updateTextControlsUi()
+                        writePreferences()
                     }
 
                     override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -275,84 +526,103 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
 
         // When clicked, lower detection score threshold floor
         fragmentCameraBinding.bottomSheetLayout.detThresholdMinus.setOnClickListener {
-            if (setgameDetectorHelper.detThreshold >= 0.1) {
-                setgameDetectorHelper.detThreshold -= 0.1f
-                setgameDetectorHelper.WritePreferences()
+            if (detectorHelper.threshold >= 0.1) {
+                detectorHelper.threshold -= 0.1f
+                detectorHelper.clearDetector()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
         // When clicked, raise detection score threshold floor
         fragmentCameraBinding.bottomSheetLayout.detThresholdPlus.setOnClickListener {
-            if (setgameDetectorHelper.detThreshold <= 0.8) {
-                setgameDetectorHelper.detThreshold += 0.1f
-                setgameDetectorHelper.WritePreferences()
+            if (detectorHelper.threshold <= 0.8) {
+                detectorHelper.threshold += 0.1f
+                detectorHelper.clearDetector()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
         // When clicked, reduce the number of objects that can be detected at a time
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsMinus.setOnClickListener {
-            if (setgameDetectorHelper.detMaxResults > 1) {
-                setgameDetectorHelper.detMaxResults--
-                setgameDetectorHelper.WritePreferences()
+            if (detectorHelper.maxResults > 1) {
+                detectorHelper.maxResults--
+                detectorHelper.clearDetector()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
         // When clicked, increase the number of objects that can be detected at a time
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsPlus.setOnClickListener {
-            if (setgameDetectorHelper.detMaxResults < 32) {
-                setgameDetectorHelper.detMaxResults++
-                setgameDetectorHelper.WritePreferences()
+            if (detectorHelper.maxResults < 32) {
+                detectorHelper.maxResults++
+                detectorHelper.clearDetector()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
+        // When clicked, lower classifier score threshold floor
         fragmentCameraBinding.bottomSheetLayout.classThresholdMinus.setOnClickListener {
-            if (setgameDetectorHelper.classThreshold >= 0.1) {
-                setgameDetectorHelper.classThreshold -= 0.1f
-                setgameDetectorHelper.WritePreferences()
+            if (classifierHelper.threshold >= 0.1) {
+                classifierHelper.threshold -= 0.1f
+                classifierHelper.clearClassifier()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
-        // When clicked, raise detection score threshold floor
+        // When clicked, raise classifier score threshold floor
         fragmentCameraBinding.bottomSheetLayout.classThresholdPlus.setOnClickListener {
-            if (setgameDetectorHelper.classThreshold <= 0.8) {
-                setgameDetectorHelper.classThreshold += 0.1f
-                setgameDetectorHelper.WritePreferences()
+            if (classifierHelper.threshold <= 0.8) {
+                classifierHelper.threshold += 0.1f
+                classifierHelper.clearClassifier()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
         // When clicked, decrease the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsMinus.setOnClickListener {
-            if (setgameDetectorHelper.numThreads > 1) {
-                setgameDetectorHelper.numThreads--
-                setgameDetectorHelper.WritePreferences()
+            if (detectorHelper.numThreads > 1) {
+                detectorHelper.numThreads--
+                // sync classifier setting with detector
+                classifierHelper.numThreads = detectorHelper.numThreads
+                detectorHelper.clearDetector()
+                classifierHelper.clearClassifier()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
         // When clicked, increase the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsPlus.setOnClickListener {
-            if (setgameDetectorHelper.numThreads < 4) {
-                setgameDetectorHelper.numThreads++
-                setgameDetectorHelper.WritePreferences()
+            if (detectorHelper.numThreads < 4) {
+                detectorHelper.numThreads++
+                // sync classifier setting with detector
+                classifierHelper.numThreads = detectorHelper.numThreads
+                detectorHelper.clearDetector()
+                classifierHelper.clearClassifier()
                 updateTextControlsUi()
+                writePreferences()
             }
         }
 
         // When clicked, change the underlying hardware used for inference. Current options are CPU
         // GPU, and NNAPI
-        fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.setSelection(setgameDetectorHelper.currentDelegate, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.setSelection(detectorHelper.currentDelegate.mode, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerDelegate.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                    setgameDetectorHelper.currentDelegate = p2
-                    setgameDetectorHelper.WritePreferences()
+                    detectorHelper.currentDelegate = DelegationMode.fromInt(p2)!!
+                    // sync classifier setting with detector
+                    classifierHelper.currentDelegate = detectorHelper.currentDelegate
+                    detectorHelper.clearDetector()
+                    classifierHelper.clearClassifier()
                     updateTextControlsUi()
+                    writePreferences()
                 }
 
                 override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -361,13 +631,14 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             }
 
         // When clicked, change the underlying model used for object detection
-        fragmentCameraBinding.bottomSheetLayout.spinnerModel.setSelection(setgameDetectorHelper.currentModel, false)
+        fragmentCameraBinding.bottomSheetLayout.spinnerModel.setSelection(detectorHelper.currentModel, false)
         fragmentCameraBinding.bottomSheetLayout.spinnerModel.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                    setgameDetectorHelper.currentModel = p2
-                    setgameDetectorHelper.WritePreferences()
+                    detectorHelper.currentModel = p2
+                    detectorHelper.clearDetector()
                     updateTextControlsUi()
+                    writePreferences()
                 }
 
                 override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -376,9 +647,13 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
             }
 
         fragmentCameraBinding.bottomSheetLayout.startstopButton.setOnClickListener {
-            /* update button*/
-            setgameDetectorHelper.scanEnabled = !setgameDetectorHelper.scanEnabled
-            setgameDetectorHelper.clearCards()
+            /* update button */
+            scanIsInProgress = !scanIsInProgress
+
+            /* reset all data */
+            rawDetectionResults = LinkedList<Detection>()
+            cards.clear()
+
             updateTextControlsUi()
         }
 
@@ -501,7 +776,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                 colors.recycle()
             }
             override fun onDraw(canvas: Canvas){
-                if (!showDetections)
+                if (!scanIsInProgress)
                     return
 
                 // show fps
@@ -525,8 +800,8 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                 // Draw text for detected object
                 canvas.drawText(fpsText, 0f, fpsTop+bounds.height(), textPaint)
 
-                //show results
-                for (result in results) {
+                //show raw results
+                for (result in rawDetectionResults) {
                     val boundingBox = result.getBoundingBox()
 
                     val top = boundingBox.top * scaleFactor
@@ -535,21 +810,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     val right = boundingBox.right * scaleFactor
 
                     // Draw bounding box around detected objects
-                    val drawableRect = RectF(left, top, right, bottom)
-                    if (result is Grouppable) {
-                        for(groupId in result.getGroupIds()) {
-                            assert(groupBoxPaintMap.size > 0)
-                            val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
-                            canvas.drawRect(drawableRect, pb)
-                            // make all groups visible
-                            drawableRect.left -= pb.strokeWidth
-                            drawableRect.top -= pb.strokeWidth
-                            drawableRect.bottom += pb.strokeWidth
-                            drawableRect.right += pb.strokeWidth
-                        }
-                    }else{
-                        canvas.drawRect(drawableRect, boxPaint)
-                    }
+                    canvas.drawRect(RectF(left, top, right, bottom), boxPaint)
 
                     if (result.getCategories().size > 0) {
                         // Create text to display alongside detected objects
@@ -601,7 +862,78 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                         canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
                     }
                 }
+                // TODO: to rework
+                // show cards
+                for (result in cards) {
+                    val boundingBox = result.detection.boundingBox
 
+                    val top = boundingBox.top * scaleFactor
+                    val bottom = boundingBox.bottom * scaleFactor
+                    val left = boundingBox.left * scaleFactor
+                    val right = boundingBox.right * scaleFactor
+
+                    // Draw bounding box around detected objects
+                    val drawableRect = RectF(left, top, right, bottom)
+                        for(groupId in result.getGroupIds()) {
+                            assert(groupBoxPaintMap.size > 0)
+                            val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
+                            canvas.drawRect(drawableRect, pb)
+                            // make all groups visible
+                            drawableRect.left -= pb.strokeWidth
+                            drawableRect.top -= pb.strokeWidth
+                            drawableRect.bottom += pb.strokeWidth
+                            drawableRect.right += pb.strokeWidth
+                        }
+                    if (result.getCategories().size > 0) {
+                        // Create text to display alongside detected objects
+                        var shiftX = 0
+                        var label = result.getCategories()[0].label + " "
+                        val crd = CardValue.fromString(result.getCategories()[0].label)
+                        if (crd != null && thumbnailsBitmapHelper != null) {
+                            // don't need label - we'll draw a picture instead
+                            label = ""
+                            shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
+
+                            val idx = thumbnailsBitmapHelper!!.getThumbIndx(crd)
+                            val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
+                            val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
+
+                            val src = Rect(
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * column,
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * row,
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * (column + 1),
+                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * (row + 1))
+                            val dst = RectF(
+                                    left,
+                                    top,
+                                    left + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9,
+                                    top + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9)
+
+                            canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap!!,
+                                    src,
+                                    dst,
+                                    textBackgroundPaint
+                            )
+                        }
+
+                        val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
+
+                        // Draw rect behind display text
+                        textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
+                        val textWidth = bounds.width()
+                        val textHeight = bounds.height()
+                        canvas.drawRect(
+                                left + shiftX,
+                                top,
+                                left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                textBackgroundPaint
+                        )
+
+                        // Draw text for detected object
+                        canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
+                    }
+                }
             }
         })
 
@@ -680,7 +1012,7 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                     })
 
                     // find if we pressed within any detected card? if so - propose to override
-                    for (result in results) {
+                    for (result in rawDetectionResults) {
                         // check that it's a card at all
                         val crd = CardValue.fromString(result.getCategories()[0].label) ?: continue
 
@@ -706,28 +1038,26 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
     // Update the values displayed in the bottom sheet. Reset detector.
     private fun updateTextControlsUi() {
         fragmentCameraBinding.bottomSheetLayout.detMaxResultsValue.text =
-            setgameDetectorHelper.detMaxResults.toString()
+            detectorHelper.maxResults.toString()
         fragmentCameraBinding.bottomSheetLayout.detThresholdValue.text =
-            String.format("%.2f", setgameDetectorHelper.detThreshold)
+            String.format("%.2f", detectorHelper.threshold)
         fragmentCameraBinding.bottomSheetLayout.classThresholdValue.text =
-                String.format("%.2f", setgameDetectorHelper.classThreshold)
+                String.format("%.2f", classifierHelper.threshold)
         fragmentCameraBinding.bottomSheetLayout.threadsValue.text =
-            setgameDetectorHelper.numThreads.toString()
+            detectorHelper.numThreads.toString()
 
-        if (setgameDetectorHelper.scanEnabled) {
-            fragmentCameraBinding.bottomSheetLayout.startstopButton.text =
-                getString(R.string.label_startstop_btn_stop)
+        if (scanIsInProgress) {
+            fragmentCameraBinding.bottomSheetLayout.startstopButton.text = getString(R.string.label_startstop_btn_stop)
         } else {
-            fragmentCameraBinding.bottomSheetLayout.startstopButton.text =
-                getString(R.string.label_startstop_btn_start)
+            fragmentCameraBinding.bottomSheetLayout.startstopButton.text = getString(R.string.label_startstop_btn_start)
         }
 
         // Needs to be cleared instead of reinitialized because the GPU
         // delegate needs to be initialized on the thread using it when applicable
-        setgameDetectorHelper.clearObjectDetector()
-        showDetections = setgameDetectorHelper.scanEnabled
+        detectorHelper.clearDetector()
+        classifierHelper.clearClassifier()
+
         fragmentCameraBinding.overlay.invalidate()
-        //TBD: fragmentCameraBinding.overlay.clear()
     }
 
     // restart app to apply new camera settings
@@ -986,13 +1316,12 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
                             // The image rotation and RGB image buffer are initialized only once
                             // the analyzer has started running
                             bitmapBuffer = Bitmap.createBitmap(
-                                    //image.width+16,
                                     image.planes[0].rowStride/image.planes[0].pixelStride,
                                     image.height,
                               Bitmap.Config.ARGB_8888
                             )
                         }
-                        detectObjects(image)
+                        scanObjects(image)
                     }
                 }
 
@@ -1015,17 +1344,198 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         editor.apply()
     }
 
-    private fun detectObjects(image: ImageProxy) {
-//        if(!setgameDetectorHelper.scanEnabled)
-//            return
-
+    private fun scanObjects(image: ImageProxy) {
         // Copy out RGB bits to the shared bitmap buffer
+        // NOTE: we must do it even if we don't detect anything
         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
 
+        if(!this.scanIsInProgress)
+            return
 
         val imageRotation = image.imageInfo.rotationDegrees
+
+        // count time
+        var startTime = SystemClock.uptimeMillis()
+
         // Pass Bitmap and rotation to the object detector helper for processing and detection
-        setgameDetectorHelper.detect(bitmapBuffer, imageRotation)
+        val detectedTriple = detectorHelper.detect(bitmapBuffer, imageRotation)
+
+        // Update UI after objects have been detected. Extracts original image height/width
+        // to scale and place bounding boxes properly through OverlayView
+        this.rawDetectionResults = detectedTriple.first as List<Detection>? ?: LinkedList<Detection>()
+
+        val imageHeight: Int = detectedTriple.second
+        val imageWidth: Int = detectedTriple.third
+        this.scaleFactor = max(
+                fragmentCameraBinding.overlay.width * 1f / imageWidth,
+                fragmentCameraBinding.overlay.height * 1f / imageHeight)
+
+        if (detectorHelper.currentModel == DetectorHelper.MODEL_SETGAME) {
+            scanForSets(bitmapBuffer, imageRotation, this.rawDetectionResults)
+        }
+
+        this.inferenceTime = SystemClock.uptimeMillis() - startTime
+        activity?.runOnUiThread {
+            // Force a redraw
+            fragmentCameraBinding.overlay.invalidate()
+        }
+    }
+
+    // setgame specific functions
+    private fun scanForSets(
+            image: Bitmap,
+            imageRotation: Int,
+            results: List<Detection>) {
+
+        // below starts the SETGAME specific code
+        updateWithNewDetections(image, imageRotation, results)
+
+        // find sets and mark them as groups
+        findSets()
+    }
+
+    private fun updateWithNewDetections(
+            image: Bitmap,
+            imageRotation: Int,
+            results: List<Detection>) {
+
+        var reDetectedCards = LinkedList<ViewCard>()
+        var newDet = LinkedList<Detection>()
+        var newCards = LinkedList<ViewCard>()
+
+        outer@for (det in results) {
+            for (card in cards) {
+                if (card.isWithinBorders(det)) {
+                    // move to the re-detected list
+                    cards.remove(card)
+                    reDetectedCards.add(card)
+
+                    // mark as re-detected & update all info
+                    card.markReDetected(det)
+
+                    continue@outer
+                }
+            }
+            // new card didn't find any matching card - add a new one
+            newDet.add(det)
+        }
+
+        // try to reClassify redetectedCards if they're timed out
+        // limit this to 5 cards at a time - we'll update them next detection period
+        var reclassifiedCounter = 0
+        for (card in reDetectedCards) {
+            if (!card.isReClassifyCandidate())
+                continue
+            var res = classifierHelper.classify(image, imageRotation, card.detection.boundingBox)
+            if (res != null) {
+                card.updateClassifications(res)
+            }
+            reclassifiedCounter++
+            if (reclassifiedCounter > 5)
+                break
+        }
+
+        // classify the newly appeared cards in newDet and add the to newCards
+        for (det in newDet) {
+            var res = classifierHelper.classify(image, imageRotation, det.boundingBox)
+            if (res != null/*&& res.classifications.size > 0 */) {
+                var card = ViewCard(det)
+                card.updateClassifications(res)
+                newCards.add(card)
+            }
+        }
+        // TODO: cards contains the list non matching cards - we need to handle them
+        // try to identify their new position based on the trajectory of redetected cards
+        // and redetect them and add to reDetectedCards
+        var t: BoundsTransformation? = null
+        for (card in reDetectedCards) {
+            // TBD: we're handling only move without zooming, rotating and etc. even though it's possible to try those as well later
+            val xt = card.getBoundsTransformation()
+            if (xt != null) {
+                t = xt
+                // reset scaling for now to make a more stable result
+                t.scaleX = 1.0f
+                t.scaleY = 1.0f
+            }
+        }
+        if (t != null) {
+            // we can try to transform and classify
+            for (card in cards) {
+                card.applyBoundsTransformation(t!!)
+                var res = classifierHelper.classify(image, imageRotation, card.detection.boundingBox)
+                if (res != null && res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0){
+                    card.updateClassifications(res)
+                    reDetectedCards.add(card)
+                }else {
+                    if (!card.isDetectionOutdated()){
+                        reDetectedCards.add(card)
+                    }
+                }
+            }
+        }
+
+        // update the internal list with all we found
+        cards = reDetectedCards
+        cards.addAll(newCards)
+    }
+
+    private fun findSets(): Boolean {
+        var vCardsByName = HashMap<AbstractCard,ViewCard>()
+        var inSet = HashSet<AbstractCard>()
+        // store all cards to set
+        for (vCard in cards) {
+            var cardVal = CardValue.fromString(vCard.name())
+            // add only classified cards
+            if (cardVal != null) {
+                val card = SimpleCard(cardVal)
+                inSet.add(card)
+                vCardsByName.put(card, vCard)
+            }
+        }
+
+        var solutions = findAllSetCombination(inSet)
+
+        // clean groups
+        for (vCard in cards) {
+            vCard.groups.clear()
+        }
+
+        // mode 1
+        if (setsFinderMode == SetsFinderMode.AllSets) {
+            // TODO: how to keep the same group from scan to scan?
+            var groupId = 0
+            for (g in solutions) {
+                for (c in g.cards) {
+                    //find corresponding vCard
+                    var vCard = vCardsByName.get(c)
+                    assert(vCard != null)
+                    if (vCard != null) {
+                        vCard.groups.add(groupId)
+                    }
+                }
+                // next id
+                groupId++
+            }
+            return true
+        }
+        // mode 2
+        var groupId = 0
+        for (ss in findAllNonOverlappingSetCombination(solutions)) {
+            // for each solutionset
+            for (s in ss) {
+                for (c in s.cards) {
+                    //find corresponding vCard
+                    var vCard = vCardsByName.get(c)
+                    assert(vCard != null)
+                    if (vCard != null) {
+                        vCard.groups.add(groupId)
+                    }
+                }
+            }
+            // next id
+            groupId++
+        }
+        return true
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -1033,34 +1543,12 @@ class CameraFragment : Fragment(), SetgameDetectorHelper.DetectorListener {
         imageAnalyzer?.targetRotation = fragmentCameraBinding.viewFinder.display.rotation
     }
 
-    // Update UI after objects have been detected. Extracts original image height/width
-    // to scale and place bounding boxes properly through OverlayView
-    override fun onResults(
-            results: MutableList<Detected>?,
-            inferenceTime: Long,
-            imageHeight: Int,
-            imageWidth: Int
-    ) {
-        // if button is enabled
-        if(!setgameDetectorHelper.scanEnabled) {
-            return
-        }
-
+    override fun onDetectorError(error: String) {
         activity?.runOnUiThread {
-            this.inferenceTime = inferenceTime
-            this.results = results?: LinkedList<Detected>()
-
-            // PreviewView is in FILL_START mode. So we need to scale up the bounding box to match with
-            // the size that the captured images will be displayed.
-            scaleFactor = max(fragmentCameraBinding.overlay.width * 1f / imageWidth,
-                    fragmentCameraBinding.overlay.height * 1f / imageHeight)
-
-            // Force a redraw
-            fragmentCameraBinding.overlay.invalidate()
+            Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
         }
     }
-
-    override fun onError(error: String) {
+    override fun onClassifierError(error: String) {
         activity?.runOnUiThread {
             Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
         }

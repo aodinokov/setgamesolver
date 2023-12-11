@@ -53,7 +53,6 @@
 
     <string-array name="models_spinner_titles">
         <item>SetGame</item>
-        <item>SetGame debug</item>
         <item>MobileNet V1</item>
     </string-array>
 

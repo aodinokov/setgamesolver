@@ -150,7 +150,7 @@ class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
     }
     fun isDetectionOutdated():Boolean {
         // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
-        return  SystemClock.uptimeMillis() - detectedTime < 2000
+        return  (SystemClock.uptimeMillis() - detectedTime) < 30000 // TBD: can be in cycles, not in real time
     }
 
     fun getBoundsTransformation(): BoundsTransformation? {
@@ -1445,18 +1445,21 @@ class CameraFragment : Fragment(),
                 t.scaleY = 1.0f
             }
         }
-        if (t != null) {
-            // we can try to transform and classify
-            for (card in cards) {
+
+        // we can try to transform and classify
+        for (card in cards) {
+            if (t != null)
                 card.applyBoundsTransformation(t!!)
-                var res = classifierHelper.classify(image, imageRotation, card.detection.boundingBox)
-                if (res != null && res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0){
-                    card.updateClassifications(res)
+            var res = classifierHelper.classify(image, imageRotation, card.detection.boundingBox)
+            if (res != null &&
+                    res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0 &&
+                    res[ClassifierHelper.SHAPE_CLASSIFIER][0].score > 0.8){
+                card.updateClassifications(res)
+                reDetectedCards.add(card)
+                card.detectedTime = SystemClock.uptimeMillis()
+            }else {
+                if (card.overriddenValue != null || !card.isDetectionOutdated()){
                     reDetectedCards.add(card)
-                }else {
-                    if (!card.isDetectionOutdated()){
-                        reDetectedCards.add(card)
-                    }
                 }
             }
         }

@@ -95,7 +95,7 @@ data class BoundsTransformation(
         var scaleX:Float,
         var scaleY: Float)
 
-class ViewCard(var detection: Detection): AbstractCard() {
+class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
     var detectedTime = SystemClock.uptimeMillis()
 
     private var prevBounds: RectF? = null
@@ -105,16 +105,16 @@ class ViewCard(var detection: Detection): AbstractCard() {
 
     var classificationMax = Array<Category?>(4, {null})
 
-    override fun getValue(): CardValue {
-        if (overriddenValue != null)
-            return overriddenValue!!
-        return classifiedValue
-    }
+//    override fun getValue(): CardValue {
+//        if (overriddenValue != null)
+//            return overriddenValue!!
+//        return classifiedValue
+//    }
 
     // TBD: to remove
     fun name(): String{
-//        if (overriddenName != null)
-//            return overriddenName.toString()
+        if (overriddenValue != null)
+            return overriddenValue.toString()
 
         val cats = getAccumulatedClassifications()
         if (cats != null && cats.size > 0) {
@@ -222,6 +222,8 @@ class ViewCard(var detection: Detection): AbstractCard() {
     }
 
     fun isReClassifyCandidate(): Boolean {
+        if (overriddenValue  != null)
+            return false
         return SystemClock.uptimeMillis() - detectedTime < 500
     }
 }
@@ -887,8 +889,8 @@ class CameraFragment : Fragment(),
                     if (result.getCategories().size > 0) {
                         // Create text to display alongside detected objects
                         var shiftX = 0
-                        var label = result.getCategories()[0].label + " "
-                        val crd = CardValue.fromString(result.getCategories()[0].label)
+                        var label = result.name()/*getCategories()[0].label*/ + " "
+                        val crd = CardValue.fromString(result.name()/*getCategories()[0].label*/)
                         if (crd != null && thumbnailsBitmapHelper != null) {
                             // don't need label - we'll draw a picture instead
                             label = ""
@@ -960,7 +962,10 @@ class CameraFragment : Fragment(),
                     val minusShape = overrideDialog.findViewById<ImageButton>(R.id.minus_shape)
                     val plusShape = overrideDialog.findViewById<ImageButton>(R.id.plus_shape)
 
+                    var currentDlgCardValue: CardValue? = null
                     fun setView(currentCardValue: CardValue) {
+                        currentDlgCardValue = currentCardValue
+
                         val current = overrideDialog.findViewById<ImageView>(R.id.current)
                         current.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(currentCardValue)))
                         // their values
@@ -1012,11 +1017,11 @@ class CameraFragment : Fragment(),
                     })
 
                     // find if we pressed within any detected card? if so - propose to override
-                    for (result in rawDetectionResults) {
+                    for (result in cards) {
                         // check that it's a card at all
-                        val crd = CardValue.fromString(result.getCategories()[0].label) ?: continue
+                        val crd = CardValue.fromString(result.name()) ?: continue
 
-                        val boundingBox = result.getBoundingBox()
+                        val boundingBox = result.detection.boundingBox
                         val top = boundingBox.top * scaleFactor
                         val bottom = boundingBox.bottom * scaleFactor
                         val left = boundingBox.left * scaleFactor
@@ -1025,6 +1030,12 @@ class CameraFragment : Fragment(),
                         if (event.rawX > left && event.rawX < right &&
                                 event.rawY > top && event.rawY < bottom) {
                             setView(crd)
+                            okay_text.setOnClickListener(View.OnClickListener {
+                                if (currentDlgCardValue != null) {
+                                    result.overriddenValue = currentDlgCardValue
+                                }
+                                overrideDialog.dismiss()
+                            })
                             overrideDialog.show()
                             break
                         }

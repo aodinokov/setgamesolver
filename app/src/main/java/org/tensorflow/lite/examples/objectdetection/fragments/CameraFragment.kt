@@ -862,7 +862,7 @@ class CameraFragment : Fragment(),
                         )
 
                         // show only if it's not override
-                        if (result.overriddenValue != null) {
+                        if (result.overriddenValue == null) {
                             val drawableText = String.format("%.2f", result.getCategories()[0].score)
 
                             // Draw rect behind display text

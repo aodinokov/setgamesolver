@@ -95,10 +95,10 @@ data class BoundsTransformation(
         var scaleX:Float,
         var scaleY: Float)
 
-class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
+class ViewCard(var boundingBox: RectF)/*: AbstractCard()*/ {
     var detectedTime = SystemClock.uptimeMillis()
 
-    private var prevBounds: RectF? = null
+    private var prevBoundingBox: RectF? = null
 
     lateinit var classifiedValue: CardValue
     var overriddenValue: CardValue? = null
@@ -116,8 +116,8 @@ class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
         if (overriddenValue != null)
             return overriddenValue.toString()
 
-        val cats = getAccumulatedClassifications()
-        if (cats != null && cats.size > 0) {
+        val cats = getCategories()
+        if (cats.size > 0) {
             return cats[0].label
         }
 
@@ -131,21 +131,20 @@ class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
         return groups
     }
 
-    fun isWithinBorders(detection: Detection): Boolean {
-        val newBounds = detection.getBoundingBox()
+    fun isWithinBorders(boundingBox: RectF): Boolean {
         // check if new bounds are in intersect with the arg
-        if ((this.detection.boundingBox.centerX() - newBounds.centerX()).absoluteValue < this.detection.boundingBox.width()/2 &&
-                (this.detection.boundingBox.centerY() - newBounds.centerY()).absoluteValue < this.detection.boundingBox.height()/2) {
+        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
+                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
             return true
         }
         return false
     }
-    fun updateDetection(detection: Detection) {
-        prevBounds = RectF(this.detection.boundingBox)
-        this.detection = detection
+    fun updateDetection(boundingBox: RectF) {
+        prevBoundingBox = RectF(this.boundingBox)
+        this.boundingBox = boundingBox
     }
-    fun markReDetected(detection: Detection) {
-        updateDetection(detection)
+    fun markReDetected(boundingBox: RectF) {
+        updateDetection(boundingBox)
         detectedTime = SystemClock.uptimeMillis()
     }
     fun isDetectionOutdated():Boolean {
@@ -155,30 +154,30 @@ class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
 
     fun getBoundsTransformation(): BoundsTransformation? {
         if (
-                prevBounds == null ||
-                prevBounds!!.width() == 0.0f ||
-                prevBounds!!.height() == 0.0f)
+                prevBoundingBox == null ||
+                prevBoundingBox!!.width() == 0.0f ||
+                prevBoundingBox!!.height() == 0.0f)
             return null
         return BoundsTransformation(
-                this.detection.boundingBox.centerX() - prevBounds!!.centerX(),
-                this.detection.boundingBox.centerY() - prevBounds!!.centerY(),
-                this.detection.boundingBox.width()/prevBounds!!.width(),
-                this.detection.boundingBox.height()/prevBounds!!.height()
+                this.boundingBox.centerX() - prevBoundingBox!!.centerX(),
+                this.boundingBox.centerY() - prevBoundingBox!!.centerY(),
+                this.boundingBox.width()/prevBoundingBox!!.width(),
+                this.boundingBox.height()/prevBoundingBox!!.height()
         )
     }
     fun applyBoundsTransformation(t: BoundsTransformation) {
-        prevBounds = RectF(this.detection.boundingBox)
+        prevBoundingBox = RectF(this.boundingBox)
         val boundsTmp = RectF(
-                prevBounds!!.left + t.deltaX,
-                prevBounds!!.top + t.deltaY,
-                prevBounds!!.right + t.deltaX,
-                prevBounds!!.bottom + t.deltaY,
+                prevBoundingBox!!.left + t.deltaX,
+                prevBoundingBox!!.top + t.deltaY,
+                prevBoundingBox!!.right + t.deltaX,
+                prevBoundingBox!!.bottom + t.deltaY,
         )
         //now scale
-        this.detection.boundingBox.left = boundsTmp.centerX()-boundsTmp.width()*t.scaleX/2
-        this.detection.boundingBox.top = boundsTmp.centerY()-boundsTmp.height()*t.scaleX/2
-        this.detection.boundingBox.right = boundsTmp.centerX()+boundsTmp.width()*t.scaleX/2
-        this.detection.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
+        this.boundingBox.left = boundsTmp.centerX()-boundsTmp.width()*t.scaleX/2
+        this.boundingBox.top = boundsTmp.centerY()-boundsTmp.height()*t.scaleX/2
+        this.boundingBox.right = boundsTmp.centerX()+boundsTmp.width()*t.scaleX/2
+        this.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
     }
 
     fun updateClassifications(newCategories: Array<MutableList<Category>>?) {
@@ -194,12 +193,13 @@ class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
         }
     }
 
-    fun getAccumulatedClassifications(): MutableList<Category>? {
+    fun getCategories(): MutableList<Category> {
+        var res = LinkedList<Category>()
         if (classificationMax[0]!= null &&
                 classificationMax[1]!= null &&
                 classificationMax[2]!= null &&
                 classificationMax[3]!= null) {
-            var res = LinkedList<Category>()
+
             res.add(Category(
                     classificationMax[0]!!.label + "-" +
                             classificationMax[1]!!.label + "-" +
@@ -209,16 +209,8 @@ class ViewCard(var detection: Detection)/*: AbstractCard()*/ {
                             classificationMax[1]!!.score *
                             classificationMax[2]!!.score *
                             classificationMax[3]!!.score))
-            return res
         }
-        return null
-    }
-    fun getCategories(): MutableList<Category> {
-        val cats = getAccumulatedClassifications()
-        if (cats != null)
-            return cats!!
-
-        return detection.categories
+        return res
     }
 
     fun isReClassifyCandidate(): Boolean {
@@ -843,7 +835,7 @@ class CameraFragment : Fragment(),
                 // TODO: to rework
                 // show cards
                 for (result in cards) {
-                    val boundingBox = result.detection.boundingBox
+                    val boundingBox = result.boundingBox
 
                     val top = boundingBox.top * scaleFactor
                     val bottom = boundingBox.bottom * scaleFactor
@@ -997,7 +989,7 @@ class CameraFragment : Fragment(),
                         // check that it's a card at all
                         val crd = CardValue.fromString(result.name()) ?: continue
 
-                        val boundingBox = result.detection.boundingBox
+                        val boundingBox = result.boundingBox
                         val top = boundingBox.top * scaleFactor
                         val bottom = boundingBox.bottom * scaleFactor
                         val left = boundingBox.left * scaleFactor
@@ -1392,13 +1384,13 @@ class CameraFragment : Fragment(),
 
         outer@for (det in results) {
             for (card in cards) {
-                if (card.isWithinBorders(det)) {
+                if (card.isWithinBorders(det.boundingBox)) {
                     // move to the re-detected list
                     cards.remove(card)
                     reDetectedCards.add(card)
 
                     // mark as re-detected & update all info
-                    card.markReDetected(det)
+                    card.markReDetected(det.boundingBox)
 
                     continue@outer
                 }
@@ -1413,7 +1405,7 @@ class CameraFragment : Fragment(),
         for (card in reDetectedCards) {
             if (!card.isReClassifyCandidate())
                 continue
-            var res = classifierHelper.classify(image, imageRotation, card.detection.boundingBox)
+            var res = classifierHelper.classify(image, imageRotation, card.boundingBox)
             if (res != null) {
                 card.updateClassifications(res)
             }
@@ -1426,7 +1418,7 @@ class CameraFragment : Fragment(),
         for (det in newDet) {
             var res = classifierHelper.classify(image, imageRotation, det.boundingBox)
             if (res != null/*&& res.classifications.size > 0 */) {
-                var card = ViewCard(det)
+                var card = ViewCard(det.boundingBox)
                 card.updateClassifications(res)
                 newCards.add(card)
             }
@@ -1450,7 +1442,7 @@ class CameraFragment : Fragment(),
         for (card in cards) {
             if (t != null)
                 card.applyBoundsTransformation(t!!)
-            var res = classifierHelper.classify(image, imageRotation, card.detection.boundingBox)
+            var res = classifierHelper.classify(image, imageRotation, card.boundingBox)
             if (res != null &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0 &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER][0].score > 0.8){

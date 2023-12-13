@@ -1456,7 +1456,10 @@ class CameraFragment : Fragment(),
             }
         }
 
-        var solutions = findAllSetCombination(inSet)
+        val solutions = findAllSetCombination(inSet)
+        val solutionsMode1 = solutions.sortedBy {
+            it.toString()
+        }
 
         // clean groups
         for (vCard in cards) {
@@ -1467,7 +1470,7 @@ class CameraFragment : Fragment(),
         if (setsFinderMode == SetsFinderMode.AllSets) {
             // TODO: how to keep the same group from scan to scan?
             var groupId = 0
-            for (g in solutions) {
+            for (g in solutionsMode1) {
                 for (c in g.cards) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
@@ -1483,7 +1486,10 @@ class CameraFragment : Fragment(),
         }
         // mode 2
         var groupId = 0
-        for (ss in findAllNonOverlappingSetCombination(solutions)) {
+        val solutionsMode2 = findAllNonOverlappingSetCombination(solutions).sortedBy {
+            it.toString()
+        }
+        for (ss in solutionsMode2) {
             // for each solutionset
             for (s in ss) {
                 for (c in s.cards) {

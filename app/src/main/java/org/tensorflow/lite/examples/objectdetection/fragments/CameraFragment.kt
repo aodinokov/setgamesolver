@@ -89,83 +89,39 @@ enum class SetsFinderMode(val mode: Int) {
     NonOverlappingSets(1),
 }
 
-data class BoundsTransformation(
+data class BoundingBoxTransformation(
         var deltaX: Float,
         var deltaY: Float,
         var scaleX:Float,
         var scaleY: Float)
 
 class ViewCard(var boundingBox: RectF)/*: AbstractCard()*/ {
-    var detectedTime = SystemClock.uptimeMillis()
-
     private var prevBoundingBox: RectF? = null
-
-    lateinit var classifiedValue: CardValue
-    var overriddenValue: CardValue? = null
-
-    var classificationMax = Array<Category?>(4, {null})
-
-//    override fun getValue(): CardValue {
-//        if (overriddenValue != null)
-//            return overriddenValue!!
-//        return classifiedValue
-//    }
-
-    // TBD: to remove
-    fun name(): String{
-        if (overriddenValue != null)
-            return overriddenValue.toString()
-
-        val cats = getCategories()
-        if (cats.size > 0) {
-            return cats[0].label
-        }
-
-        return ""
-    }
-
-    // TBD
-    public var groups = HashSet<Int>()
-    // Group-able interface impl
-    fun getGroupIds(): Set<Int> {
-        return groups
-    }
-
-    fun isWithinBorders(boundingBox: RectF): Boolean {
-        // check if new bounds are in intersect with the arg
+    fun isWithinBoundingBox(boundingBox: RectF): Boolean {
         if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
                 (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
             return true
         }
         return false
     }
-    fun updateDetection(boundingBox: RectF) {
-        prevBoundingBox = RectF(this.boundingBox)
+    fun updateBoundingBox(boundingBox: RectF) {
+        prevBoundingBox = this.boundingBox
         this.boundingBox = boundingBox
     }
-    fun markReDetected(boundingBox: RectF) {
-        updateDetection(boundingBox)
-        detectedTime = SystemClock.uptimeMillis()
-    }
-    fun isDetectionOutdated():Boolean {
-        // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
-        return  (SystemClock.uptimeMillis() - detectedTime) < 30000 // TBD: can be in cycles, not in real time
-    }
-
-    fun getBoundsTransformation(): BoundsTransformation? {
+    fun getLastBoundingBoxTransformation(): BoundingBoxTransformation? {
         if (
                 prevBoundingBox == null ||
                 prevBoundingBox!!.width() == 0.0f ||
                 prevBoundingBox!!.height() == 0.0f)
             return null
-        return BoundsTransformation(
+        return BoundingBoxTransformation(
                 this.boundingBox.centerX() - prevBoundingBox!!.centerX(),
                 this.boundingBox.centerY() - prevBoundingBox!!.centerY(),
                 this.boundingBox.width()/prevBoundingBox!!.width(),
                 this.boundingBox.height()/prevBoundingBox!!.height()
         )
     }
-    fun applyBoundsTransformation(t: BoundsTransformation) {
+    fun applyBoundingBoxTransformation(t: BoundingBoxTransformation) {
         prevBoundingBox = RectF(this.boundingBox)
         val boundsTmp = RectF(
                 prevBoundingBox!!.left + t.deltaX,
@@ -180,43 +136,69 @@ class ViewCard(var boundingBox: RectF)/*: AbstractCard()*/ {
         this.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
     }
 
-    fun updateClassifications(newCategories: Array<MutableList<Category>>?) {
+    var overriddenValue: CardValue? = null
+    private var categoriesMax = Array<Category?>(4, {null})
+    fun updateCategories(newCategories: Array<MutableList<Category>>?) {
         if (newCategories == null)
             return
-        assert(newCategories.size == classificationMax.size)
-        for (i in 0 until classificationMax.size) {
+        assert(newCategories.size == categoriesMax.size)
+        for (i in 0 until categoriesMax.size) {
             if (newCategories[i].size == 0)
                 continue
             val newCat = newCategories[i][0]
-            if (classificationMax[i] == null || classificationMax[i]!!.score <= newCat.score)
-                classificationMax[i] = newCat
+            if (categoriesMax[i] == null || categoriesMax[i]!!.score <= newCat.score)
+                categoriesMax[i] = newCat
         }
     }
-
     fun getCategories(): MutableList<Category> {
         var res = LinkedList<Category>()
-        if (classificationMax[0]!= null &&
-                classificationMax[1]!= null &&
-                classificationMax[2]!= null &&
-                classificationMax[3]!= null) {
-
+        if (categoriesMax[0]!= null &&
+                categoriesMax[1]!= null &&
+                categoriesMax[2]!= null &&
+                categoriesMax[3]!= null) {
             res.add(Category(
-                    classificationMax[0]!!.label + "-" +
-                            classificationMax[1]!!.label + "-" +
-                            classificationMax[2]!!.label + "-" +
-                            classificationMax[3]!!.label,
-                    classificationMax[0]!!.score *
-                            classificationMax[1]!!.score *
-                            classificationMax[2]!!.score *
-                            classificationMax[3]!!.score))
+                    categoriesMax[0]!!.label + "-" +
+                            categoriesMax[1]!!.label + "-" +
+                            categoriesMax[2]!!.label + "-" +
+                            categoriesMax[3]!!.label,
+                    categoriesMax[0]!!.score *
+                            categoriesMax[1]!!.score *
+                            categoriesMax[2]!!.score *
+                            categoriesMax[3]!!.score))
         }
         return res
     }
+    fun getValueOrNull(): CardValue? {
+        if (overriddenValue != null)
+            return overriddenValue!!
+        val cats = getCategories()
+        if (cats.size > 0) {
+            return CardValue.fromString(cats[0].label)
+        }
+        return null
+    }
 
+    private var detectedTime: Long = SystemClock.uptimeMillis()
+    fun updateDetectedTime(detectedTime: Long = SystemClock.uptimeMillis()) {
+        this.detectedTime = detectedTime
+    }
+    fun isDetectionOutdated():Boolean {
+        if (overriddenValue  != null)
+            return false
+        // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
+        return  (SystemClock.uptimeMillis() - detectedTime) < 30000 // can be in cycles, not in real time. what is better?
+    }
     fun isReClassifyCandidate(): Boolean {
         if (overriddenValue  != null)
             return false
-        return SystemClock.uptimeMillis() - detectedTime < 500
+        return SystemClock.uptimeMillis() - detectedTime < 1500 // can be in cycles, not in real time. what is better?
+    }
+
+    // TODO: to remove
+    public var groups = HashSet<Int>()
+    // Group-able interface impl
+    fun getGroupIds(): Set<Int> {
+        return groups
     }
 }
 
@@ -251,7 +233,7 @@ class ThumbnailsBitmapHelper(
         val shapeWeight: Int = 0,
         val shapeMap: Map<Int,Int>?= null) {
 
-    fun getThumbIndx(cardValue: CardValue):Int {
+    fun getThumbIndex(cardValue: CardValue):Int {
         var number = cardValue.number.code - 1
         var color = cardValue.color.code - 1
         var shading = cardValue.shading.code - 1
@@ -295,21 +277,21 @@ class ThumbnailsBitmapHelper(
 class SelectedCamera(    val auto: Boolean = true,
                          val facing: Int = 0,
                          val cameraId: String = "",
-                         val stringRepr: String = "") {
+                         val stringRepresentation: String = "") {
     override fun toString(): String {
-        return stringRepr
+        return stringRepresentation
     }
 }
 
 class SelectedCameraResolution(val parent: SelectedCamera,
                                val size: Size,
-                               val stringRepr: String = ""
+                               val stringRepresentation: String = ""
 ){
     override fun toString(): String {
-        if (stringRepr == "") {
+        if (stringRepresentation == "") {
             return size.toString()
         }
-        return stringRepr
+        return stringRepresentation
     }
 }
 
@@ -434,7 +416,7 @@ class CameraFragment : Fragment(),
             if (state.containsKey("setsFinderMode")) {
                 try {
                     setsFinderMode = SetsFinderMode.valueOf(state["setsFinderMode"].toString())
-                }catch (e: IllegalArgumentException) { }
+                }catch (_: IllegalArgumentException) { }
             }
             if (state.containsKey("detectorMode")){
                 detectorHelper.threshold = state["detThreshold"].toString().toFloat()
@@ -662,24 +644,24 @@ class CameraFragment : Fragment(),
             resolutionDialog.setCancelable(false)
             //dialog.window!!.attributes.windowAnimations = R.style.animation
 
-            val spinner_camera = resolutionDialog.findViewById<Spinner>(R.id.spinner_camera)
-            val spinner_resolution = resolutionDialog.findViewById<Spinner>(R.id.spinner_resolution)
-            val okay_text = resolutionDialog.findViewById<TextView>(R.id.okay_text)
-            val cancel_text = resolutionDialog.findViewById<TextView>(R.id.cancel_text)
+            val spinnerCamera = resolutionDialog.findViewById<Spinner>(R.id.spinner_camera)
+            val spinnerResolution = resolutionDialog.findViewById<Spinner>(R.id.spinner_resolution)
+            val okayText = resolutionDialog.findViewById<TextView>(R.id.okay_text)
+            val cancelText = resolutionDialog.findViewById<TextView>(R.id.cancel_text)
 
-            okay_text.setOnClickListener(View.OnClickListener {
+            okayText.setOnClickListener(View.OnClickListener {
                 //store preferences
                 val preferences = PreferenceManager.getDefaultSharedPreferences(context)
                 val c = preferences.getString("camera", "")
                 val r = preferences.getString("resolution", "")
 
                 var configChanged = false
-                if (c != spinner_camera.adapter.getItem(spinner_camera.selectedItemId.toInt()).toString() ||
-                        r != spinner_resolution.adapter.getItem(spinner_resolution.selectedItemId.toInt()).toString()) {
+                if (c != spinnerCamera.adapter.getItem(spinnerCamera.selectedItemId.toInt()).toString() ||
+                        r != spinnerResolution.adapter.getItem(spinnerResolution.selectedItemId.toInt()).toString()) {
                     configChanged = true
                     val editor = preferences.edit()
-                    editor.putString("camera", spinner_camera.adapter.getItem(spinner_camera.selectedItemId.toInt()).toString())
-                    editor.putString("resolution", spinner_resolution.adapter.getItem(spinner_resolution.selectedItemId.toInt()).toString())
+                    editor.putString("camera", spinnerCamera.adapter.getItem(spinnerCamera.selectedItemId.toInt()).toString())
+                    editor.putString("resolution", spinnerResolution.adapter.getItem(spinnerResolution.selectedItemId.toInt()).toString())
                     editor.apply()
                 }
 
@@ -692,49 +674,48 @@ class CameraFragment : Fragment(),
                 }
             })
 
-            cancel_text.setOnClickListener(View.OnClickListener {
+            cancelText.setOnClickListener(View.OnClickListener {
                 resolutionDialog.dismiss()
             })
 
             val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val cameras_list = BuildCamerasList(cm)
-            var cameras_adapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  cameras_list)
-            spinner_camera.adapter = cameras_adapter
-            spinner_camera.onItemSelectedListener =
+            val camerasList = BuildCamerasList(cm)
+            val camerasAdapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  camerasList)
+            spinnerCamera.adapter = camerasAdapter
+            spinnerCamera.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
                     val upperAdapter = p0!!.adapter
                     val camera = upperAdapter.getItem(p2)
                     // update resolution list if resolution has a different selected camera?
-                    if (!spinner_resolution.adapter.isEmpty && (spinner_resolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
-                        val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                        var adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, BuildCameraResolutionList(cm, camera as SelectedCamera))
-                        spinner_resolution.adapter = adapter
+                    if (!spinnerResolution.adapter.isEmpty && (spinnerResolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
+                        val adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, BuildCameraResolutionList(cm, camera as SelectedCamera))
+                        spinnerResolution.adapter = adapter
                     }
                 }
                 override fun onNothingSelected(p0: AdapterView<*>?) {
                     /* no op */
                 }
             }
-            if (cameras_list.size > 0) {
+            if (camerasList.isNotEmpty()) {
                 // read and set dialog
                 val preferences = PreferenceManager.getDefaultSharedPreferences(context)
 
-                val c = preferences.getString("camera", cameras_list[0].toString())
+                val c = preferences.getString("camera", camerasList[0].toString())
                 // find the current id
-                var ci = cameras_list.indexOfFirst { it.toString() == c }
+                var ci = camerasList.indexOfFirst { it.toString() == c }
                 if (ci < 0){ ci = 0}
-                spinner_camera.setSelection(ci, false)
+                spinnerCamera.setSelection(ci, false)
 
-                val resolution_list = BuildCameraResolutionList(cm, cameras_list[ci])
-                var resolution_adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, resolution_list)
-                spinner_resolution.adapter = resolution_adapter
+                val resolutionList = BuildCameraResolutionList(cm, camerasList[ci])
+                val resolutionAdapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, resolutionList)
+                spinnerResolution.adapter = resolutionAdapter
 
-                val r = preferences.getString("resolution", resolution_list[0].toString())
+                val r = preferences.getString("resolution", resolutionList[0].toString())
                 // find the resolution id
-                var ri = resolution_list.indexOfFirst { it.toString() == r }
+                var ri = resolutionList.indexOfFirst { it.toString() == r }
                 if (ri < 0){ ri = 0}
-                spinner_resolution.setSelection(ri, false)
+                spinnerResolution.setSelection(ri, false)
             }
             resolutionDialog.show()
         }
@@ -786,13 +767,13 @@ class CameraFragment : Fragment(),
                 }
                 // Draw rect behind display text
                 textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
-                val textWidth = bounds.width()
-                val textHeight = bounds.height()
+                val fpsTextWidth = bounds.width()
+                val fpsTextHeight = bounds.height()
                 canvas.drawRect(
                         0f,
                         fpsTop,
-                        0f + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                        fpsTop + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                        0f + fpsTextWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                        fpsTop + fpsTextHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
                         textBackgroundPaint
                 )
                 // Draw text for detected object
@@ -810,11 +791,11 @@ class CameraFragment : Fragment(),
                     // Draw bounding box around detected objects
                     canvas.drawRect(RectF(left, top, right, bottom), boxPaint)
 
-                    if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.getCategories().size > 0) {
+                    if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.categories.size > 0) {
                         // Create text to display alongside detected objects
-                        var shiftX = 0
-                        var label = result.getCategories()[0].label + " "
-                        val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
+                        val shiftX = 0
+                        val label = result.categories[0].label + " "
+                        val drawableText = label + String.format("%.2f", result.categories[0].score)
 
                         // Draw rect behind display text
                         textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
@@ -834,6 +815,7 @@ class CameraFragment : Fragment(),
                 }
                 // TODO: to rework
                 // show cards
+                assert(thumbnailsBitmapHelper != null)
                 for (result in cards) {
                     val boundingBox = result.boundingBox
 
@@ -854,54 +836,51 @@ class CameraFragment : Fragment(),
                             drawableRect.bottom += pb.strokeWidth
                             drawableRect.right += pb.strokeWidth
                         }
-                    if (result.getCategories().size > 0) {
+                    val crd = result.getValueOrNull()
+                    if (crd != null) {
                         // Create text to display alongside detected objects
-                        var shiftX = 0
-                        var label = result.name()/*getCategories()[0].label*/ + " "
-                        val crd = CardValue.fromString(result.name()/*getCategories()[0].label*/)
-                        if (crd != null && thumbnailsBitmapHelper != null) {
-                            // don't need label - we'll draw a picture instead
-                            label = ""
-                            shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 // we have put 9 cards in the row
+                        val shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 // we have put 9 cards in the row
 
-                            val idx = thumbnailsBitmapHelper!!.getThumbIndx(crd)
-                            val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
-                            val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
+                        val idx = thumbnailsBitmapHelper!!.getThumbIndex(crd)
+                        val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
+                        val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
 
-                            val src = Rect(
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * column,
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * row,
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9 * (column + 1),
-                                    thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9 * (row + 1))
-                            val dst = RectF(
-                                    left,
-                                    top,
-                                    left + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.width / 9,
-                                    top + thumbnailsBitmapHelper!!.thumbnailsBitmap!!.height / 9)
-
-                            canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap!!,
-                                    src,
-                                    dst,
-                                    textBackgroundPaint
-                            )
-                        }
-
-                        val drawableText = label + String.format("%.2f", result.getCategories()[0].score)
-
-                        // Draw rect behind display text
-                        textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
-                        val textWidth = bounds.width()
-                        val textHeight = bounds.height()
-                        canvas.drawRect(
-                                left + shiftX,
+                        val src = Rect(
+                                thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 * column,
+                                thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9 * row,
+                                thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 * (column + 1),
+                                thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9 * (row + 1))
+                        val dst = RectF(
+                                left,
                                 top,
-                                left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                                top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                left + thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9,
+                                top + thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9)
+
+                        canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap,
+                                src,
+                                dst,
                                 textBackgroundPaint
                         )
 
-                        // Draw text for detected object
-                        canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
+                        // show only if it's not override
+                        if (result.overriddenValue != null) {
+                            val drawableText = String.format("%.2f", result.getCategories()[0].score)
+
+                            // Draw rect behind display text
+                            textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
+                            val textWidth = bounds.width()
+                            val textHeight = bounds.height()
+                            canvas.drawRect(
+                                    left + shiftX,
+                                    top,
+                                    left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                    top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                    textBackgroundPaint
+                            )
+
+                            // Draw text for detected object
+                            canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
+                        }
                     }
                 }
             }
@@ -935,7 +914,7 @@ class CameraFragment : Fragment(),
                         currentDlgCardValue = currentCardValue
 
                         val current = overrideDialog.findViewById<ImageView>(R.id.current)
-                        current.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(currentCardValue)))
+                        current.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(currentCardValue)))
                         // their values
                         val minusCountCard = CardValue(CardNumber.previous(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
                         val plusCountCard = CardValue(CardNumber.next(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
@@ -946,35 +925,35 @@ class CameraFragment : Fragment(),
                         val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.previous(currentCardValue.shape))
                         val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
                         // set the picture
-                        minusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusCountCard)))
+                        minusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusCountCard)))
                         minusCount.setOnClickListener(View.OnClickListener {
                             setView(minusCountCard)
                         })
-                        plusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusCountCard)))
+                        plusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusCountCard)))
                         plusCount.setOnClickListener(View.OnClickListener {
                             setView(plusCountCard)
                         })
-                        minusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusColorCard)))
+                        minusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusColorCard)))
                         minusColor.setOnClickListener(View.OnClickListener {
                             setView(minusColorCard)
                         })
-                        plusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusColorCard)))
+                        plusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusColorCard)))
                         plusColor.setOnClickListener(View.OnClickListener {
                             setView(plusColorCard)
                         })
-                        minusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusFillCard)))
+                        minusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusFillCard)))
                         minusFill.setOnClickListener(View.OnClickListener {
                             setView(minusFillCard)
                         })
-                        plusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusFillCard)))
+                        plusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusFillCard)))
                         plusFill.setOnClickListener(View.OnClickListener {
                             setView(plusFillCard)
                         })
-                        minusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(minusShapeCard)))
+                        minusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusShapeCard)))
                         minusShape.setOnClickListener(View.OnClickListener {
                             setView(minusShapeCard)
                         })
-                        plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndx(plusShapeCard)))
+                        plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusShapeCard)))
                         plusShape.setOnClickListener(View.OnClickListener {
                             setView(plusShapeCard)
                         })
@@ -987,7 +966,7 @@ class CameraFragment : Fragment(),
                     // find if we pressed within any detected card? if so - propose to override
                     for (result in cards) {
                         // check that it's a card at all
-                        val crd = CardValue.fromString(result.name()) ?: continue
+                        val crd = result.getValueOrNull() ?: continue
 
                         val boundingBox = result.boundingBox
                         val top = boundingBox.top * scaleFactor
@@ -1131,14 +1110,14 @@ class CameraFragment : Fragment(),
                         auto = true,
                         facing = facingId,
                         cameraId = "n/a",
-                        stringRepr = autoConst + " " + cameraSelectFacingConst[facingId]))
+                        stringRepresentation = autoConst + " " + cameraSelectFacingConst[facingId]))
                 for (id in 0 until cameraIdPerFacing[facingId]!!.size) {
                     cameras.add(
                             SelectedCamera(
                                     auto = false,
                                     facing = facingId,
                                     cameraId = cameraIdPerFacing[facingId]!!.get(id),
-                                    stringRepr = cameraIdPerFacing[facingId]!!.get(id)+ "-"+cameraSelectFacingConst[facingId]))
+                                    stringRepresentation = cameraIdPerFacing[facingId]!!.get(id)+ "-"+cameraSelectFacingConst[facingId]))
                 }
             }
         }
@@ -1334,7 +1313,7 @@ class CameraFragment : Fragment(),
         val imageRotation = image.imageInfo.rotationDegrees
 
         // count time
-        var startTime = SystemClock.uptimeMillis()
+        val startTime = SystemClock.uptimeMillis()
 
         // Pass Bitmap and rotation to the object detector helper for processing and detection
         val detectedTriple = detectorHelper.detect(bitmapBuffer, imageRotation)
@@ -1378,19 +1357,20 @@ class CameraFragment : Fragment(),
             imageRotation: Int,
             results: List<Detection>) {
 
-        var reDetectedCards = LinkedList<ViewCard>()
-        var newDet = LinkedList<Detection>()
-        var newCards = LinkedList<ViewCard>()
+        val reDetectedCards = LinkedList<ViewCard>()
+        val newDet = LinkedList<Detection>()
+        val newCards = LinkedList<ViewCard>()
 
         outer@for (det in results) {
             for (card in cards) {
-                if (card.isWithinBorders(det.boundingBox)) {
+                if (card.isWithinBoundingBox(det.boundingBox)) {
                     // move to the re-detected list
                     cards.remove(card)
                     reDetectedCards.add(card)
 
                     // mark as re-detected & update all info
-                    card.markReDetected(det.boundingBox)
+                    card.updateBoundingBox(det.boundingBox)
+                    card.updateDetectedTime()
 
                     continue@outer
                 }
@@ -1405,9 +1385,9 @@ class CameraFragment : Fragment(),
         for (card in reDetectedCards) {
             if (!card.isReClassifyCandidate())
                 continue
-            var res = classifierHelper.classify(image, imageRotation, card.boundingBox)
+            val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
             if (res != null) {
-                card.updateClassifications(res)
+                card.updateCategories(res)
             }
             reclassifiedCounter++
             if (reclassifiedCounter > 5)
@@ -1416,20 +1396,20 @@ class CameraFragment : Fragment(),
 
         // classify the newly appeared cards in newDet and add the to newCards
         for (det in newDet) {
-            var res = classifierHelper.classify(image, imageRotation, det.boundingBox)
+            val res = classifierHelper.classify(image, imageRotation, det.boundingBox)
             if (res != null/*&& res.classifications.size > 0 */) {
-                var card = ViewCard(det.boundingBox)
-                card.updateClassifications(res)
+                val card = ViewCard(det.boundingBox)
+                card.updateCategories(res)
                 newCards.add(card)
             }
         }
         // TODO: cards contains the list non matching cards - we need to handle them
         // try to identify their new position based on the trajectory of redetected cards
         // and redetect them and add to reDetectedCards
-        var t: BoundsTransformation? = null
+        var t: BoundingBoxTransformation? = null
         for (card in reDetectedCards) {
             // TBD: we're handling only move without zooming, rotating and etc. even though it's possible to try those as well later
-            val xt = card.getBoundsTransformation()
+            val xt = card.getLastBoundingBoxTransformation()
             if (xt != null) {
                 t = xt
                 // reset scaling for now to make a more stable result
@@ -1441,14 +1421,14 @@ class CameraFragment : Fragment(),
         // we can try to transform and classify
         for (card in cards) {
             if (t != null)
-                card.applyBoundsTransformation(t!!)
-            var res = classifierHelper.classify(image, imageRotation, card.boundingBox)
+                card.applyBoundingBoxTransformation(t)
+            val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
             if (res != null &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0 &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER][0].score > 0.8){
-                card.updateClassifications(res)
+                card.updateCategories(res)
                 reDetectedCards.add(card)
-                card.detectedTime = SystemClock.uptimeMillis()
+                card.updateDetectedTime()
             }else {
                 if (card.overriddenValue != null || !card.isDetectionOutdated()){
                     reDetectedCards.add(card)
@@ -1466,7 +1446,7 @@ class CameraFragment : Fragment(),
         var inSet = HashSet<AbstractCard>()
         // store all cards to set
         for (vCard in cards) {
-            var cardVal = CardValue.fromString(vCard.name())
+            var cardVal = vCard.getValueOrNull()
             // add only classified cards
             if (cardVal != null) {
                 val card = SimpleCard(cardVal)

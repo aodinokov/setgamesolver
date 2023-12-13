@@ -642,7 +642,6 @@ class CameraFragment : Fragment(),
             resolutionDialog.setContentView(R.layout.resolution_dialog)
             resolutionDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             resolutionDialog.setCancelable(false)
-            //dialog.window!!.attributes.windowAnimations = R.style.animation
 
             val spinnerCamera = resolutionDialog.findViewById<Spinner>(R.id.spinner_camera)
             val spinnerResolution = resolutionDialog.findViewById<Spinner>(R.id.spinner_resolution)
@@ -886,7 +885,7 @@ class CameraFragment : Fragment(),
             }
         })
 
-        // overlay touch dialog
+        // override dialog
         val overrideDialog = Dialog(requireContext())
         fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { view, event ->
             if (event != null && thumbnailsBitmapHelper != null) {
@@ -966,17 +965,19 @@ class CameraFragment : Fragment(),
                     // find if we pressed within any detected card? if so - propose to override
                     for (result in cards) {
                         // check that it's a card at all
-                        val crd = result.getValueOrNull() ?: continue
+                        val cardValue = result.getValueOrNull() ?: continue
 
-                        val boundingBox = result.boundingBox
-                        val top = boundingBox.top * scaleFactor
-                        val bottom = boundingBox.bottom * scaleFactor
-                        val left = boundingBox.left * scaleFactor
-                        val right = boundingBox.right * scaleFactor
+                        val top = result.boundingBox.top * scaleFactor
+                        val bottom = result.boundingBox.bottom * scaleFactor
+                        val left = result.boundingBox.left * scaleFactor
+                        val right = result.boundingBox.right * scaleFactor
 
                         if (event.rawX > left && event.rawX < right &&
                                 event.rawY > top && event.rawY < bottom) {
-                            setView(crd)
+                            //lock it
+                            result.overriddenValue = cardValue
+
+                            setView(result.overriddenValue!!)
                             okay_text.setOnClickListener(View.OnClickListener {
                                 if (currentDlgCardValue != null) {
                                     result.overriddenValue = currentDlgCardValue

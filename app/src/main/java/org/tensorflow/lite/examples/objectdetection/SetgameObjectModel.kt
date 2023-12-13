@@ -148,7 +148,7 @@ abstract class AbstractCard {
     }
 }
 
-class SimpleCard(val v: CardValue): AbstractCard() {
+class SimpleCard(private val v: CardValue): AbstractCard() {
     override fun getValue(): CardValue {
         return v
     }
@@ -166,12 +166,12 @@ data class SetCombination(val cards: Set<AbstractCard>) {
                     it.getValue().shape.code }
         var res = ""
         for (i in sorted) {
-            if (res.length > 0){
+            if (res.isNotEmpty()){
                 res += ", "
             }
             res += i.toString()
         }
-        return "(" + res + ")"
+        return "($res)"
     }
 }
 

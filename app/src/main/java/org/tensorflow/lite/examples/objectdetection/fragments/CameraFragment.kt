@@ -678,7 +678,7 @@ class CameraFragment : Fragment(),
             })
 
             val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val camerasList = BuildCamerasList(cm)
+            val camerasList = buildCamerasList(cm)
             val camerasAdapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  camerasList)
             spinnerCamera.adapter = camerasAdapter
             spinnerCamera.onItemSelectedListener =
@@ -688,7 +688,7 @@ class CameraFragment : Fragment(),
                     val camera = upperAdapter.getItem(p2)
                     // update resolution list if resolution has a different selected camera?
                     if (!spinnerResolution.adapter.isEmpty && (spinnerResolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
-                        val adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, BuildCameraResolutionList(cm, camera as SelectedCamera))
+                        val adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, buildCameraResolutionList(cm, camera as SelectedCamera))
                         spinnerResolution.adapter = adapter
                     }
                 }
@@ -706,7 +706,7 @@ class CameraFragment : Fragment(),
                 if (ci < 0){ ci = 0}
                 spinnerCamera.setSelection(ci, false)
 
-                val resolutionList = BuildCameraResolutionList(cm, camerasList[ci])
+                val resolutionList = buildCameraResolutionList(cm, camerasList[ci])
                 val resolutionAdapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, resolutionList)
                 spinnerResolution.adapter = resolutionAdapter
 
@@ -888,105 +888,105 @@ class CameraFragment : Fragment(),
         // override dialog
         val overrideDialog = Dialog(requireContext())
         fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { view, event ->
-            if (event != null && thumbnailsBitmapHelper != null) {
-                val dialog = overrideDialog
-                if (event.action == MotionEvent.ACTION_DOWN) {
-                    overrideDialog.setContentView(R.layout.card_override_dialog)
-                    overrideDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                    overrideDialog.setCancelable(false)
+            assert(thumbnailsBitmapHelper != null)
+            if (event != null &&
+                    event.action == MotionEvent.ACTION_DOWN &&
+                    this.scanIsInProgress) {
+                overrideDialog.setContentView(R.layout.card_override_dialog)
+                overrideDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                overrideDialog.setCancelable(false)
 
-                    val okay_text = overrideDialog.findViewById<TextView>(R.id.okay_text)
-                    val cancel_text = overrideDialog.findViewById<TextView>(R.id.cancel_text)
+                val okayText = overrideDialog.findViewById<TextView>(R.id.okay_text)
+                val cancelText = overrideDialog.findViewById<TextView>(R.id.cancel_text)
 
-                    // variations per axis
-                    val minusCount = overrideDialog.findViewById<ImageButton>(R.id.minus_count)
-                    val plusCount = overrideDialog.findViewById<ImageButton>(R.id.plus_count)
-                    val minusColor = overrideDialog.findViewById<ImageButton>(R.id.minus_color)
-                    val plusColor = overrideDialog.findViewById<ImageButton>(R.id.plus_color)
-                    val minusFill = overrideDialog.findViewById<ImageButton>(R.id.minus_fill)
-                    val plusFill = overrideDialog.findViewById<ImageButton>(R.id.plus_fill)
-                    val minusShape = overrideDialog.findViewById<ImageButton>(R.id.minus_shape)
-                    val plusShape = overrideDialog.findViewById<ImageButton>(R.id.plus_shape)
+                // variations per axis
+                val minusCount = overrideDialog.findViewById<ImageButton>(R.id.minus_count)
+                val plusCount = overrideDialog.findViewById<ImageButton>(R.id.plus_count)
+                val minusColor = overrideDialog.findViewById<ImageButton>(R.id.minus_color)
+                val plusColor = overrideDialog.findViewById<ImageButton>(R.id.plus_color)
+                val minusFill = overrideDialog.findViewById<ImageButton>(R.id.minus_fill)
+                val plusFill = overrideDialog.findViewById<ImageButton>(R.id.plus_fill)
+                val minusShape = overrideDialog.findViewById<ImageButton>(R.id.minus_shape)
+                val plusShape = overrideDialog.findViewById<ImageButton>(R.id.plus_shape)
 
-                    var currentDlgCardValue: CardValue? = null
-                    fun setView(currentCardValue: CardValue) {
-                        currentDlgCardValue = currentCardValue
+                var currentDlgCardValue: CardValue? = null
+                fun setView(currentCardValue: CardValue) {
+                    currentDlgCardValue = currentCardValue
 
-                        val current = overrideDialog.findViewById<ImageView>(R.id.current)
-                        current.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(currentCardValue)))
-                        // their values
-                        val minusCountCard = CardValue(CardNumber.previous(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
-                        val plusCountCard = CardValue(CardNumber.next(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
-                        val minusColorCard = CardValue(currentCardValue.number, CardColor.previous(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
-                        val plusColorCard = CardValue(currentCardValue.number, CardColor.next(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
-                        val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.previous(currentCardValue.shading), currentCardValue.shape)
-                        val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.next(currentCardValue.shading), currentCardValue.shape)
-                        val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.previous(currentCardValue.shape))
-                        val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
-                        // set the picture
-                        minusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusCountCard)))
-                        minusCount.setOnClickListener(View.OnClickListener {
-                            setView(minusCountCard)
-                        })
-                        plusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusCountCard)))
-                        plusCount.setOnClickListener(View.OnClickListener {
-                            setView(plusCountCard)
-                        })
-                        minusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusColorCard)))
-                        minusColor.setOnClickListener(View.OnClickListener {
-                            setView(minusColorCard)
-                        })
-                        plusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusColorCard)))
-                        plusColor.setOnClickListener(View.OnClickListener {
-                            setView(plusColorCard)
-                        })
-                        minusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusFillCard)))
-                        minusFill.setOnClickListener(View.OnClickListener {
-                            setView(minusFillCard)
-                        })
-                        plusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusFillCard)))
-                        plusFill.setOnClickListener(View.OnClickListener {
-                            setView(plusFillCard)
-                        })
-                        minusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusShapeCard)))
-                        minusShape.setOnClickListener(View.OnClickListener {
-                            setView(minusShapeCard)
-                        })
-                        plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusShapeCard)))
-                        plusShape.setOnClickListener(View.OnClickListener {
-                            setView(plusShapeCard)
-                        })
-                    }
-
-                    cancel_text.setOnClickListener(View.OnClickListener {
-                        overrideDialog.dismiss()
+                    val current = overrideDialog.findViewById<ImageView>(R.id.current)
+                    current.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(currentCardValue)))
+                    // their values
+                    val minusCountCard = CardValue(CardNumber.previous(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
+                    val plusCountCard = CardValue(CardNumber.next(currentCardValue.number), currentCardValue.color, currentCardValue.shading, currentCardValue.shape)
+                    val minusColorCard = CardValue(currentCardValue.number, CardColor.previous(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
+                    val plusColorCard = CardValue(currentCardValue.number, CardColor.next(currentCardValue.color), currentCardValue.shading, currentCardValue.shape)
+                    val minusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.previous(currentCardValue.shading), currentCardValue.shape)
+                    val plusFillCard = CardValue(currentCardValue.number, currentCardValue.color, CardShading.next(currentCardValue.shading), currentCardValue.shape)
+                    val minusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.previous(currentCardValue.shape))
+                    val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
+                    // set the picture
+                    minusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusCountCard)))
+                    minusCount.setOnClickListener(View.OnClickListener {
+                        setView(minusCountCard)
                     })
+                    plusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusCountCard)))
+                    plusCount.setOnClickListener(View.OnClickListener {
+                        setView(plusCountCard)
+                    })
+                    minusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusColorCard)))
+                    minusColor.setOnClickListener(View.OnClickListener {
+                        setView(minusColorCard)
+                    })
+                    plusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusColorCard)))
+                    plusColor.setOnClickListener(View.OnClickListener {
+                        setView(plusColorCard)
+                    })
+                    minusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusFillCard)))
+                    minusFill.setOnClickListener(View.OnClickListener {
+                        setView(minusFillCard)
+                    })
+                    plusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusFillCard)))
+                    plusFill.setOnClickListener(View.OnClickListener {
+                        setView(plusFillCard)
+                    })
+                    minusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusShapeCard)))
+                    minusShape.setOnClickListener(View.OnClickListener {
+                        setView(minusShapeCard)
+                    })
+                    plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusShapeCard)))
+                    plusShape.setOnClickListener(View.OnClickListener {
+                        setView(plusShapeCard)
+                    })
+                }
 
-                    // find if we pressed within any detected card? if so - propose to override
-                    for (result in cards) {
+                cancelText.setOnClickListener(View.OnClickListener {
+                    overrideDialog.dismiss()
+                })
+
+                // find if we pressed within any detected card? if so - propose to override
+                for (result in this.cards) {
+
+                    val top = result.boundingBox.top * scaleFactor
+                    val bottom = result.boundingBox.bottom * scaleFactor
+                    val left = result.boundingBox.left * scaleFactor
+                    val right = result.boundingBox.right * scaleFactor
+
+                    if (event.rawX > left && event.rawX < right &&
+                            event.rawY > top && event.rawY < bottom) {
                         // check that it's a card at all
                         val cardValue = result.getValueOrNull() ?: continue
+                        //lock it
+                        result.overriddenValue = cardValue
 
-                        val top = result.boundingBox.top * scaleFactor
-                        val bottom = result.boundingBox.bottom * scaleFactor
-                        val left = result.boundingBox.left * scaleFactor
-                        val right = result.boundingBox.right * scaleFactor
-
-                        if (event.rawX > left && event.rawX < right &&
-                                event.rawY > top && event.rawY < bottom) {
-                            //lock it
-                            result.overriddenValue = cardValue
-
-                            setView(result.overriddenValue!!)
-                            okay_text.setOnClickListener(View.OnClickListener {
-                                if (currentDlgCardValue != null) {
-                                    result.overriddenValue = currentDlgCardValue
-                                }
-                                overrideDialog.dismiss()
-                            })
-                            overrideDialog.show()
-                            break
-                        }
+                        setView(result.overriddenValue!!)
+                        okayText.setOnClickListener(View.OnClickListener {
+                            if (currentDlgCardValue != null) {
+                                result.overriddenValue = currentDlgCardValue
+                            }
+                            overrideDialog.dismiss()
+                        })
+                        overrideDialog.show()
+                        break
                     }
                 }
             }
@@ -1020,7 +1020,7 @@ class CameraFragment : Fragment(),
     }
 
     // restart app to apply new camera settings
-    fun doRestart(c: Context?) {
+    private fun doRestart(c: Context?) {
         try {
             //check if the context is given
             if (c != null) {
@@ -1085,7 +1085,7 @@ class CameraFragment : Fragment(),
         return -1
     }
 
-    private fun BuildCamerasList(cameraManager: CameraManager): Array<SelectedCamera> {
+    private fun buildCamerasList(cameraManager: CameraManager): Array<SelectedCamera> {
         val cameraIdPerFacing = mutableMapOf<Int, MutableList<String>>()
         val cameraSelectFacingConst = resources.getStringArray(R.array.camera_select_facing)
 
@@ -1126,7 +1126,7 @@ class CameraFragment : Fragment(),
         return cameras.toTypedArray()
     }
 
-    private fun BuildCameraResolutionList(cameraManager: CameraManager, camera: SelectedCamera): Array<SelectedCameraResolution> {
+    private fun buildCameraResolutionList(cameraManager: CameraManager, camera: SelectedCamera): Array<SelectedCameraResolution> {
 
         val cameraResolutions = mutableMapOf<String, SelectedCameraResolution>()
 
@@ -1206,13 +1206,13 @@ class CameraFragment : Fragment(),
         val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
 
-        val cameras_list = BuildCamerasList(cm)
+        val cameras_list = buildCamerasList(cm)
         val c = preferences.getString("camera", cameras_list[0].toString())
         // find the current id
         var ci = cameras_list.indexOfFirst { it.toString() == c }
         if (ci < 0){ ci = 0}
 
-        val resolution_list = BuildCameraResolutionList(cm, cameras_list[ci])
+        val resolution_list = buildCameraResolutionList(cm, cameras_list[ci])
         val r = preferences.getString("resolution", resolution_list[0].toString())
         // find the resolution id
         var ri = resolution_list.indexOfFirst { it.toString() == r }
@@ -1358,15 +1358,16 @@ class CameraFragment : Fragment(),
             imageRotation: Int,
             results: List<Detection>) {
 
+        val previousCards = LinkedList<ViewCard>(this.cards)
         val reDetectedCards = LinkedList<ViewCard>()
         val newDet = LinkedList<Detection>()
         val newCards = LinkedList<ViewCard>()
 
         outer@for (det in results) {
-            for (card in cards) {
+            for (card in previousCards) {
                 if (card.isWithinBoundingBox(det.boundingBox)) {
                     // move to the re-detected list
-                    cards.remove(card)
+                    previousCards.remove(card)
                     reDetectedCards.add(card)
 
                     // mark as re-detected & update all info
@@ -1396,7 +1397,12 @@ class CameraFragment : Fragment(),
         }
 
         // classify the newly appeared cards in newDet and add the to newCards
-        for (det in newDet) {
+        outer@for (det in newDet) {
+            // filter overriding detections
+            for (addedCard in newCards) {
+                if (addedCard.isWithinBoundingBox(det.boundingBox))
+                    continue@outer
+            }
             val res = classifierHelper.classify(image, imageRotation, det.boundingBox)
             if (res != null/*&& res.classifications.size > 0 */) {
                 val card = ViewCard(det.boundingBox)
@@ -1420,7 +1426,7 @@ class CameraFragment : Fragment(),
         }
 
         // we can try to transform and classify
-        for (card in cards) {
+        for (card in previousCards) {
             if (t != null)
                 card.applyBoundingBoxTransformation(t)
             val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
@@ -1438,8 +1444,8 @@ class CameraFragment : Fragment(),
         }
 
         // update the internal list with all we found
-        cards = reDetectedCards
-        cards.addAll(newCards)
+        this.cards = reDetectedCards
+        this.cards.addAll(newCards)
     }
 
     private fun findSets(): Boolean {

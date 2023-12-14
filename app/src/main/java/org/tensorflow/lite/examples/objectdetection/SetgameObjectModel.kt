@@ -154,8 +154,8 @@ class SimpleCard(private val v: CardValue): AbstractCard() {
     }
 }
 
-// Note: we call SETS as SetCombination in our model
-data class SetCombination(val cards: Set<AbstractCard>) {
+// Note: SETS is a SetCombination of 3 cards in accordance with the rules in our model
+data class CardsCombination(val cards: Set<AbstractCard>) {
     override fun toString(): String {
         // sort them within the set
         // so we could compare string names to compare combinations
@@ -175,13 +175,13 @@ data class SetCombination(val cards: Set<AbstractCard>) {
     }
 }
 
-// TODO: move this inside SetCombination.findAll as companion object
+// TODO: move this inside SetCombinations.findAllSets as companion object
 /**
  * Convert the input set of card into list of sets 3 cards per each
  * based on the rules of the game
  */
-fun findAllSetCombination(input: Set<AbstractCard>): Set<SetCombination> {
-    val result = HashSet<SetCombination>()
+fun findAllSetCombinations(input: Set<AbstractCard>): Set<CardsCombination> {
+    val result = HashSet<CardsCombination>()
     for(i in input.indices) {
         val c0 = input.elementAt(i)
         for (j in i+1 until input.size) {
@@ -198,8 +198,8 @@ fun findAllSetCombination(input: Set<AbstractCard>): Set<SetCombination> {
                         color%3 == 0 &&
                         shading%3 == 0 &&
                         shape%3 == 0) {
-                    val setCombination = SetCombination(cards = setOf(c0, c1, c2))
-                    result.add(setCombination)
+                    val cardsCombination = CardsCombination(cards = setOf(c0, c1, c2))
+                    result.add(cardsCombination)
                 }
             }
         }
@@ -212,15 +212,15 @@ fun findAllSetCombination(input: Set<AbstractCard>): Set<SetCombination> {
  *  This function tries to find a combination of sets with maximum number of sets.
  *  If there are several such combinations - it returns all (that's why it returns the list)
  */
-fun findAllNonOverlappingSetCombination(input: Set<SetCombination>): List<Set<SetCombination>> {
+fun findAllNonOverlappingSetCombinations(input: Set<CardsCombination>): List<Set<CardsCombination>> {
     for (i in input.indices) {
         for (j in i+1 until input.size) {
-            if (areSolutionsOverlap(input.elementAt(i), input.elementAt(j))) {
+            if (areCombinationsOverlap(input.elementAt(i), input.elementAt(j))) {
                 // build 2 subsets and check them separately
-                val res1: List<Set<SetCombination>> =
-                        findAllNonOverlappingSetCombination(input.minus(input.elementAt(j)))
-                val res2: List<Set<SetCombination>> =
-                        findAllNonOverlappingSetCombination(input.minus(input.elementAt(i)))
+                val res1: List<Set<CardsCombination>> =
+                        findAllNonOverlappingSetCombinations(input.minus(input.elementAt(j)))
+                val res2: List<Set<CardsCombination>> =
+                        findAllNonOverlappingSetCombinations(input.minus(input.elementAt(i)))
 
                 // we assume that result has at least 1 element. This must be always true
                 assert(res1.isNotEmpty())
@@ -243,7 +243,7 @@ fun findAllNonOverlappingSetCombination(input: Set<SetCombination>): List<Set<Se
     return listOf(input)
 }
 
-fun areSolutionsOverlap(s1: SetCombination, s2: SetCombination): Boolean {
+fun areCombinationsOverlap(s1: CardsCombination, s2: CardsCombination): Boolean {
     for (c in s1.cards) {
         if (s2.cards.contains(c)) {
             return true

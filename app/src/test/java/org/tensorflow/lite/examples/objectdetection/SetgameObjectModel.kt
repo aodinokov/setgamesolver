@@ -16,14 +16,8 @@
 
 package org.tensorflow.lite.examples.objectdetection
 
-import android.content.res.AssetManager
-
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
 
 /**
  * Local tests
@@ -245,7 +239,7 @@ class SetgameObjectModelTest {
                 assertTrue(value != null)
                 cards.add(SimpleCard(value!!))
             }
-            val sets = findAllSetCombination(cards)
+            val sets = findAllSetCombinations(cards)
             assertTrue(sets.size == expected.size)
             for (i in sets) {
                 assertTrue(expected.contains(i.toString()))
@@ -268,7 +262,7 @@ class SetgameObjectModelTest {
             assertTrue(value != null)
             cards.add(SimpleCard(value!!))
         }
-        val res = findAllNonOverlappingSetCombination(findAllSetCombination(cards))
+        val res = findAllNonOverlappingSetCombinations(findAllSetCombinations(cards))
         assertTrue(res.size > 0)
         // TBD - check that thereare no duplicated res
     }

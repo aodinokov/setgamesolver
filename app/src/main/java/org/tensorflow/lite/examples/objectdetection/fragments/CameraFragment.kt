@@ -77,8 +77,8 @@ import org.tensorflow.lite.examples.objectdetection.AbstractCard
 import org.tensorflow.lite.examples.objectdetection.ClassifierHelper
 import org.tensorflow.lite.examples.objectdetection.DetectorHelper
 import org.tensorflow.lite.examples.objectdetection.SimpleCard
-import org.tensorflow.lite.examples.objectdetection.findAllNonOverlappingSetCombination
-import org.tensorflow.lite.examples.objectdetection.findAllSetCombination
+import org.tensorflow.lite.examples.objectdetection.findAllNonOverlappingSetCombinations
+import org.tensorflow.lite.examples.objectdetection.findAllSetCombinations
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.vision.detector.Detection
 import java.lang.Float.max
@@ -1486,7 +1486,7 @@ class CameraFragment : Fragment(),
             }
         }
 
-        val solutions = findAllSetCombination(inSet)
+        val solutions = findAllSetCombinations(inSet)
         val solutionsMode1 = solutions.sortedBy {
             it.toString()
         }
@@ -1516,7 +1516,7 @@ class CameraFragment : Fragment(),
         }
         // mode 2
         var groupId = 0
-        val solutionsMode2 = findAllNonOverlappingSetCombination(solutions).sortedBy {
+        val solutionsMode2 = findAllNonOverlappingSetCombinations(solutions).sortedBy {
             it.toString()
         }
         for (ss in solutionsMode2) {

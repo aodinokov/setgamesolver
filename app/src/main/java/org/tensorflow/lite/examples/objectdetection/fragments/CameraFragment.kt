@@ -909,6 +909,7 @@ class CameraFragment : Fragment(),
                 val minusShape = overrideDialog.findViewById<ImageButton>(R.id.minus_shape)
                 val plusShape = overrideDialog.findViewById<ImageButton>(R.id.plus_shape)
 
+                var previousCardValue: CardValue? = null
                 var currentDlgCardValue: CardValue? = null
                 fun setView(currentCardValue: CardValue) {
                     currentDlgCardValue = currentCardValue
@@ -959,10 +960,6 @@ class CameraFragment : Fragment(),
                     })
                 }
 
-                cancelText.setOnClickListener(View.OnClickListener {
-                    overrideDialog.dismiss()
-                })
-
                 // find if we pressed within any detected card? if so - propose to override
                 for (result in this.cards) {
 
@@ -975,6 +972,14 @@ class CameraFragment : Fragment(),
                             event.rawY > top && event.rawY < bottom) {
                         // check that it's a card at all
                         val cardValue = result.getValueOrNull() ?: continue
+
+                        // save the previous value
+                        previousCardValue = result.overriddenValue
+                        cancelText.setOnClickListener(View.OnClickListener {
+                            result.overriddenValue = previousCardValue
+                            overrideDialog.dismiss()
+                        })
+
                         //lock it
                         result.overriddenValue = cardValue
 

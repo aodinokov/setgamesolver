@@ -136,6 +136,10 @@ class ViewCard(var boundingBox: RectF)/*: AbstractCard()*/ {
         this.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
     }
 
+    // lock if edit is in progress
+    var editIsProgress = false
+    var deleteNextCycle = false
+
     var overriddenValue: CardValue? = null
     private var categoriesMax = Array<Category?>(4, {null})
     fun updateCategories(newCategories: Array<MutableList<Category>>?) {
@@ -183,13 +187,13 @@ class ViewCard(var boundingBox: RectF)/*: AbstractCard()*/ {
         this.detectedTime = detectedTime
     }
     fun isDetectionOutdated():Boolean {
-        if (overriddenValue  != null)
+        if (editIsProgress || overriddenValue  != null)
             return false
         // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
         return  (SystemClock.uptimeMillis() - detectedTime) < 30000 // can be in cycles, not in real time. what is better?
     }
     fun isReClassifyCandidate(): Boolean {
-        if (overriddenValue  != null)
+        if (editIsProgress || overriddenValue  != null)
             return false
         return SystemClock.uptimeMillis() - detectedTime < 1500 // can be in cycles, not in real time. what is better?
     }
@@ -887,7 +891,7 @@ class CameraFragment : Fragment(),
 
         // override dialog
         val overrideDialog = Dialog(requireContext())
-        fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { view, event ->
+        fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { _, event ->
             assert(thumbnailsBitmapHelper != null)
             if (event != null &&
                     event.action == MotionEvent.ACTION_DOWN &&
@@ -896,9 +900,10 @@ class CameraFragment : Fragment(),
                 overrideDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 overrideDialog.setCancelable(false)
 
-                val okayText = overrideDialog.findViewById<TextView>(R.id.okay_text)
+                // controls
+                val updateText = overrideDialog.findViewById<TextView>(R.id.update_text)
+                val deleteText = overrideDialog.findViewById<TextView>(R.id.delete_text)
                 val cancelText = overrideDialog.findViewById<TextView>(R.id.cancel_text)
-
                 // variations per axis
                 val minusCount = overrideDialog.findViewById<ImageButton>(R.id.minus_count)
                 val plusCount = overrideDialog.findViewById<ImageButton>(R.id.plus_count)
@@ -909,7 +914,6 @@ class CameraFragment : Fragment(),
                 val minusShape = overrideDialog.findViewById<ImageButton>(R.id.minus_shape)
                 val plusShape = overrideDialog.findViewById<ImageButton>(R.id.plus_shape)
 
-                var previousCardValue: CardValue? = null
                 var currentDlgCardValue: CardValue? = null
                 fun setView(currentCardValue: CardValue) {
                     currentDlgCardValue = currentCardValue
@@ -970,26 +974,30 @@ class CameraFragment : Fragment(),
 
                     if (event.rawX > left && event.rawX < right &&
                             event.rawY > top && event.rawY < bottom) {
+
                         // check that it's a card at all
                         val cardValue = result.getValueOrNull() ?: continue
+                        result.editIsProgress = true
+                        setView(cardValue)
 
-                        // save the previous value
-                        previousCardValue = result.overriddenValue
                         cancelText.setOnClickListener(View.OnClickListener {
-                            result.overriddenValue = previousCardValue
+                            result.editIsProgress = false
+                            overrideDialog.dismiss()
+                        })
+                        updateText.setOnClickListener(View.OnClickListener {
+                            result.overriddenValue = currentDlgCardValue
+                            result.editIsProgress = false
+                            overrideDialog.dismiss()
+                        })
+                        deleteText.setOnClickListener(View.OnClickListener {
+                            //this.cards.remove(result)
+                            // doesn't work because we're working in the copy of the list
+                            // instead we need to mark this object as forDeletion
+                            result.deleteNextCycle = true
+                            result.editIsProgress = false
                             overrideDialog.dismiss()
                         })
 
-                        //lock it
-                        result.overriddenValue = cardValue
-
-                        setView(result.overriddenValue!!)
-                        okayText.setOnClickListener(View.OnClickListener {
-                            if (currentDlgCardValue != null) {
-                                result.overriddenValue = currentDlgCardValue
-                            }
-                            overrideDialog.dismiss()
-                        })
                         overrideDialog.show()
                         break
                     }
@@ -1367,6 +1375,17 @@ class CameraFragment : Fragment(),
         val reDetectedCards = LinkedList<ViewCard>()
         val newDet = LinkedList<Detection>()
         val newCards = LinkedList<ViewCard>()
+
+        // clean up
+        outer@while (true){
+            for (card in previousCards) {
+                if (card.deleteNextCycle) {
+                    previousCards.remove(card)
+                    continue@outer
+                }
+            }
+            break
+        }
 
         outer@for (det in results) {
             for (card in previousCards) {

@@ -11,6 +11,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <TextView
+            android:text="@string/label_edit_card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/bottom_sheet_text_size"
+            android:textColor="@color/bottom_sheet_text_color" />
+
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -94,10 +101,19 @@
             android:layout_centerHorizontal="true">
 
             <Button
-                android:id="@+id/okay_text"
+                android:id="@+id/update_text"
                 android:layout_width="@dimen/resolution_dialog_buttons_width"
                 android:layout_height="wrap_content"
-                android:text="@string/label_ok_btn" />
+                android:text="@string/label_update_btn" />
+
+            <Button
+                android:id="@+id/delete_text"
+                android:layout_width="@dimen/resolution_dialog_buttons_width"
+                android:layout_height="wrap_content"
+                android:text="@string/label_delete_btn"
+                android:gravity="center"
+                android:layout_centerHorizontal="true"/>
+
             <Button
                 android:id="@+id/cancel_text"
                 android:layout_width="@dimen/resolution_dialog_buttons_width"

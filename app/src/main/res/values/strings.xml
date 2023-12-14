@@ -65,6 +65,9 @@
     <string name="label_resolution_max">Max</string>
     <string name="label_resolution_recommended">Recommended</string>
 
+    <string name="label_edit_card">Edit card</string>
+    <string name="label_update_btn">Update</string>
+    <string name="label_delete_btn">Delete</string>
     <string name="label_ok_btn">Ok</string>
     <string name="label_cancel_btn">Cancel</string>
 
@@ -74,5 +77,6 @@
         <item>Front</item>
         <!--item>External</item-->
     </string-array>
+
 
 </resources>

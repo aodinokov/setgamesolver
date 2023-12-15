@@ -215,9 +215,10 @@ class CardSet: HashSet<AbstractCard> {
             return result
         }
         /**
-         *  FindAllSolutions can return Solutions that use the same (overlapping) cards
-         *  This function tries to find a combination of sets with maximum number of sets.
-         *  If there are several such combinations - it returns all (that's why it returns the list)
+         *  findAllSolutions can return Solutions that use the same (overlapping) cards
+         *  findAllNonOverlappingSets tries to find a combination of sets with maximum number of sets.
+         *  If there are several such combinations - it returns all (that's why
+         *  it returns the outer set that contains N same length sets of set of 3 card in each)
          */
         fun findAllNonOverlappingSets(input: Set<CardSet>): Set<Set<CardSet>> {
             for (i in input.indices) {

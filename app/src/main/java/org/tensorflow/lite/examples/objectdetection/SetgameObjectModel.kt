@@ -222,7 +222,7 @@ class CardSet: HashSet<AbstractCard> {
         fun findAllNonOverlappingSets(input: Set<CardSet>): List<Set<CardSet>> {
             for (i in input.indices) {
                 for (j in i+1 until input.size) {
-                    if (CardSet.overlap(input.elementAt(i), input.elementAt(j))) {
+                    if (overlap(input.elementAt(i), input.elementAt(j))) {
                         // build 2 subsets and check them separately
                         val res1: List<Set<CardSet>> =
                                 findAllNonOverlappingSets(input.minusElement(input.elementAt(j)))
@@ -251,5 +251,3 @@ class CardSet: HashSet<AbstractCard> {
         }
     }
 }
-
-// TODO: move this inside SetCombinations. as companion object

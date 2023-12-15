@@ -88,139 +88,6 @@ enum class SetsFinderMode(val mode: Int) {
     NonOverlappingSets(1),
 }
 
-data class BoundingBoxTransformation(
-        var deltaX: Float,
-        var deltaY: Float,
-        var scaleX:Float,
-        var scaleY: Float)
-
-class ViewCard(var boundingBox: RectF)/*: AbstractCard()*/ {
-    private var prevBoundingBox: RectF? = null
-    fun isWithinBoundingBox(boundingBox: RectF): Boolean {
-        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
-                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
-            return true
-        }
-        return false
-    }
-    fun updateBoundingBox(boundingBox: RectF) {
-        prevBoundingBox = this.boundingBox
-        this.boundingBox = boundingBox
-    }
-    fun getLastBoundingBoxTransformation(): BoundingBoxTransformation? {
-        if (
-                prevBoundingBox == null ||
-                prevBoundingBox!!.width() == 0.0f ||
-                prevBoundingBox!!.height() == 0.0f)
-            return null
-        return BoundingBoxTransformation(
-                this.boundingBox.centerX() - prevBoundingBox!!.centerX(),
-                this.boundingBox.centerY() - prevBoundingBox!!.centerY(),
-                this.boundingBox.width()/prevBoundingBox!!.width(),
-                this.boundingBox.height()/prevBoundingBox!!.height()
-        )
-    }
-    fun applyBoundingBoxTransformation(t: BoundingBoxTransformation) {
-        prevBoundingBox = RectF(this.boundingBox)
-        val boundsTmp = RectF(
-                prevBoundingBox!!.left + t.deltaX,
-                prevBoundingBox!!.top + t.deltaY,
-                prevBoundingBox!!.right + t.deltaX,
-                prevBoundingBox!!.bottom + t.deltaY,
-        )
-        //now scale
-        this.boundingBox.left = boundsTmp.centerX()-boundsTmp.width()*t.scaleX/2
-        this.boundingBox.top = boundsTmp.centerY()-boundsTmp.height()*t.scaleX/2
-        this.boundingBox.right = boundsTmp.centerX()+boundsTmp.width()*t.scaleX/2
-        this.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
-    }
-
-    // lock if edit is in progress
-    var editIsProgress = false
-    var deleteNextCycle = false
-
-    var overriddenValue: CardValue? = null
-    private var categoriesMax = Array<Category?>(4, {null})
-    fun updateCategories(newCategories: Array<MutableList<Category>>?) {
-        if (newCategories == null)
-            return
-        assert(newCategories.size == categoriesMax.size)
-        for (i in 0 until categoriesMax.size) {
-            if (newCategories[i].size == 0)
-                continue
-            val newCat = newCategories[i][0]
-            if (categoriesMax[i] == null || categoriesMax[i]!!.score <= newCat.score)
-                categoriesMax[i] = newCat
-        }
-    }
-    fun getCategories(): MutableList<Category> {
-        var res = LinkedList<Category>()
-        if (categoriesMax[0]!= null &&
-                categoriesMax[1]!= null &&
-                categoriesMax[2]!= null &&
-                categoriesMax[3]!= null) {
-            res.add(Category(
-                    categoriesMax[0]!!.label + "-" +
-                            categoriesMax[1]!!.label + "-" +
-                            categoriesMax[2]!!.label + "-" +
-                            categoriesMax[3]!!.label,
-                    categoriesMax[0]!!.score *
-                            categoriesMax[1]!!.score *
-                            categoriesMax[2]!!.score *
-                            categoriesMax[3]!!.score))
-        }
-        return res
-    }
-    fun getValueOrNull(): CardValue? {
-        if (overriddenValue != null)
-            return overriddenValue!!
-        val cats = getCategories()
-        if (cats.size > 0) {
-            return CardValue.fromString(cats[0].label)
-        }
-        return null
-    }
-
-    private var detectedTime: Long = SystemClock.uptimeMillis()
-    fun updateDetectedTime(detectedTime: Long = SystemClock.uptimeMillis()) {
-        this.detectedTime = detectedTime
-    }
-    fun isDetectionOutdated():Boolean {
-        if (editIsProgress || overriddenValue  != null)
-            return false
-        // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
-        return  (SystemClock.uptimeMillis() - detectedTime) < 30000 // can be in cycles, not in real time. what is better?
-    }
-    fun isReClassifyCandidate(): Boolean {
-        if (editIsProgress || overriddenValue  != null)
-            return false
-        return SystemClock.uptimeMillis() - detectedTime < 1500 // can be in cycles, not in real time. what is better?
-    }
-
-    // TODO: to remove
-    public var groups = HashSet<Int>()
-    // Group-able interface impl
-    fun getGroupIds(): Set<Int> {
-        return groups
-    }
-}
-
-enum class DelegationMode(val mode: Int) {
-    Cpu(0),
-    Gpu(1),
-    Nnapi(2),
-    ;
-    companion object {
-        fun fromInt(value: Int): DelegationMode? {
-            return try {
-                DelegationMode.values().first { it.mode == value }
-            } catch (ex: NoSuchElementException) {
-                null
-            }
-        }
-    }
-}
-
 /**
  * 9x9 Bitmap with adjustable order
  */
@@ -298,6 +165,148 @@ class SelectedCameraResolution(val parent: SelectedCamera,
     }
 }
 
+data class BoundingBoxTransformation(
+        var deltaX: Float,
+        var deltaY: Float,
+        var scaleX:Float,
+        var scaleY: Float)
+
+class CardClassifierZone(var boundingBox: RectF) {
+    private var prevBoundingBox: RectF? = null
+    fun isWithinBoundingBox(boundingBox: RectF): Boolean {
+        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
+                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
+            return true
+        }
+        return false
+    }
+    fun updateBoundingBox(boundingBox: RectF) {
+        prevBoundingBox = this.boundingBox
+        this.boundingBox = boundingBox
+    }
+    fun getLastBoundingBoxTransformation(): BoundingBoxTransformation? {
+        if (
+                prevBoundingBox == null ||
+                prevBoundingBox!!.width() == 0.0f ||
+                prevBoundingBox!!.height() == 0.0f)
+            return null
+        return BoundingBoxTransformation(
+                this.boundingBox.centerX() - prevBoundingBox!!.centerX(),
+                this.boundingBox.centerY() - prevBoundingBox!!.centerY(),
+                this.boundingBox.width()/prevBoundingBox!!.width(),
+                this.boundingBox.height()/prevBoundingBox!!.height()
+        )
+    }
+    fun applyBoundingBoxTransformation(t: BoundingBoxTransformation) {
+        prevBoundingBox = RectF(this.boundingBox)
+        val boundsTmp = RectF(
+                prevBoundingBox!!.left + t.deltaX,
+                prevBoundingBox!!.top + t.deltaY,
+                prevBoundingBox!!.right + t.deltaX,
+                prevBoundingBox!!.bottom + t.deltaY,
+        )
+        //now scale
+        this.boundingBox.left = boundsTmp.centerX()-boundsTmp.width()*t.scaleX/2
+        this.boundingBox.top = boundsTmp.centerY()-boundsTmp.height()*t.scaleX/2
+        this.boundingBox.right = boundsTmp.centerX()+boundsTmp.width()*t.scaleX/2
+        this.boundingBox.bottom = boundsTmp.centerY()+boundsTmp.height()*t.scaleX/2
+    }
+
+    // lock if edit is in progress
+    var editIsProgress = false
+    var deleteNextCycle = false
+
+    var overriddenValue: CardValue? = null
+    private var categoriesMax = Array<Category?>(4, {null})
+    fun updateCategories(newCategories: Array<MutableList<Category>>?) {
+        if (newCategories == null)
+            return
+        assert(newCategories.size == categoriesMax.size)
+        for (i in 0 until categoriesMax.size) {
+            if (newCategories[i].size == 0)
+                continue
+            val newCat = newCategories[i][0]
+            if (categoriesMax[i] == null || categoriesMax[i]!!.score <= newCat.score)
+                categoriesMax[i] = newCat
+        }
+    }
+    fun getCategories(): MutableList<Category> {
+        var res = LinkedList<Category>()
+        if (categoriesMax[0]!= null &&
+                categoriesMax[1]!= null &&
+                categoriesMax[2]!= null &&
+                categoriesMax[3]!= null) {
+            res.add(Category(
+                    categoriesMax[0]!!.label + "-" +
+                            categoriesMax[1]!!.label + "-" +
+                            categoriesMax[2]!!.label + "-" +
+                            categoriesMax[3]!!.label,
+                    categoriesMax[0]!!.score *
+                            categoriesMax[1]!!.score *
+                            categoriesMax[2]!!.score *
+                            categoriesMax[3]!!.score))
+        }
+        return res
+    }
+    fun getValue(): CardValue? {
+        if (overriddenValue != null)
+            return overriddenValue!!
+        val cats = getCategories()
+        if (cats.size > 0) {
+            return CardValue.fromString(cats[0].label)
+        }
+        return null
+    }
+
+    private var detectedTime: Long = SystemClock.uptimeMillis()
+    fun updateDetectedTime(detectedTime: Long = SystemClock.uptimeMillis()) {
+        this.detectedTime = detectedTime
+    }
+    fun isDetectionOutdated():Boolean {
+        if (editIsProgress || overriddenValue  != null)
+            return false
+        // if time when it was last time re-detected or re-classified is more then const (e.g. 2sec)
+        return  (SystemClock.uptimeMillis() - detectedTime) < 30000 // can be in cycles, not in real time. what is better?
+    }
+    fun isReClassifyCandidate(): Boolean {
+        if (editIsProgress || overriddenValue  != null)
+            return false
+        return SystemClock.uptimeMillis() - detectedTime < 1500 // can be in cycles, not in real time. what is better?
+    }
+
+    // TODO: to remove
+    public var groups = HashSet<Int>()
+    // Group-able interface impl
+    fun getGroupIds(): Set<Int> {
+        return groups
+    }
+}
+
+/**
+ * Inherit SimpleCard, but also store list of Classifier Zones that produced that.
+ * There can be several - in that case there are duplicates and we need
+ * to highlight them
+ */
+class ClassifiedCard(v: CardValue): SimpleCard(v) {
+    val zones = LinkedList<CardClassifierZone>()
+}
+
+enum class DelegationMode(val mode: Int) {
+    Cpu(0),
+    Gpu(1),
+    Nnapi(2),
+    ;
+    companion object {
+        fun fromInt(value: Int): DelegationMode? {
+            return try {
+                DelegationMode.values().first { it.mode == value }
+            } catch (ex: NoSuchElementException) {
+                null
+            }
+        }
+    }
+}
+
 class CameraFragment : Fragment(),
         DetectorHelper.DetectorErrorListener,
         ClassifierHelper.ClassifierErrorListener {
@@ -309,35 +318,36 @@ class CameraFragment : Fragment(),
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
 
+    /** overlay painting helper objects*/
+    private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
+
+    /** image work helpers */
     private lateinit var detectorHelper: DetectorHelper
     private lateinit var classifierHelper: ClassifierHelper
 
     private lateinit var bitmapBuffer: Bitmap
+    /** Blocking camera operations are performed using this executor */
+    private lateinit var cameraExecutor: ExecutorService
 
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
 
-    /** Blocking camera operations are performed using this executor */
-    private lateinit var cameraExecutor: ExecutorService
-
+    /** modes */
+    private var setsFinderMode = SetsFinderMode.AllSets
     private var scanIsInProgress: Boolean = false
 
     /** overlay data to show*/
     private var scaleFactor: Float = 1f
     private var inferenceTime: Long = 0
 
-    /** overlay painting helper objects*/
-    private var thumbnailsBitmapHelper: ThumbnailsBitmapHelper? = null
-
     /* raw data after detection */
     private var rawDetectionResults: List<Detection> = LinkedList<Detection>()
-
-    private var setsFinderMode = SetsFinderMode.AllSets
-
-    // we're keeping cards so the they can be traced and overridden
-    private var cards = LinkedList<ViewCard>()
+    /* we're keeping special objects that classify cards. override is a part of functionality */
+    private var cardClassifierZones = LinkedList<CardClassifierZone>()
+    /* resulting cards we were able to collect from classifier zones */
+    private var cards = HashMap<CardValue, ClassifiedCard>()
 
     companion object {
         private const val BOUNDING_RECT_TEXT_PADDING = 8
@@ -618,7 +628,7 @@ class CameraFragment : Fragment(),
                     detectorHelper.clearDetector()
 
                     // it's better to clear it, because it's only relevant to setCards
-                    cards.clear()
+                    cardClassifierZones.clear()
 
                     updateTextControlsUi()
                     writePreferences()
@@ -635,7 +645,7 @@ class CameraFragment : Fragment(),
 
             /* reset all data */
             rawDetectionResults = LinkedList<Detection>()
-            cards.clear()
+            cardClassifierZones.clear()
 
             updateTextControlsUi()
         }
@@ -818,8 +828,8 @@ class CameraFragment : Fragment(),
                 // TODO: to rework
                 // show cards
                 assert(thumbnailsBitmapHelper != null)
-                for (result in cards) {
-                    val boundingBox = result.boundingBox
+                for (cardClassifierZone in cardClassifierZones) {
+                    val boundingBox = cardClassifierZone.boundingBox
 
                     val top = boundingBox.top * scaleFactor
                     val bottom = boundingBox.bottom * scaleFactor
@@ -828,7 +838,7 @@ class CameraFragment : Fragment(),
 
                     // Draw bounding box around detected objects
                     val drawableRect = RectF(left, top, right, bottom)
-                        for(groupId in result.getGroupIds()) {
+                        for(groupId in cardClassifierZone.getGroupIds()) {
                             assert(groupBoxPaintMap.size > 0)
                             val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
                             canvas.drawRect(drawableRect, pb)
@@ -838,12 +848,12 @@ class CameraFragment : Fragment(),
                             drawableRect.bottom += pb.strokeWidth
                             drawableRect.right += pb.strokeWidth
                         }
-                    val crd = result.getValueOrNull()
-                    if (crd != null) {
+                    val cardValue = cardClassifierZone.getValue()
+                    if (cardValue != null) {
                         // Create text to display alongside detected objects
                         val shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 // we have put 9 cards in the row
 
-                        val idx = thumbnailsBitmapHelper!!.getThumbIndex(crd)
+                        val idx = thumbnailsBitmapHelper!!.getThumbIndex(cardValue)
                         val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
                         val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
 
@@ -865,8 +875,8 @@ class CameraFragment : Fragment(),
                         )
 
                         // show only if it's not override
-                        if (result.overriddenValue == null) {
-                            val drawableText = String.format("%.2f", result.getCategories()[0].score)
+                        if (cardClassifierZone.overriddenValue == null) {
+                            val drawableText = String.format("%.2f", cardClassifierZone.getCategories()[0].score)
 
                             // Draw rect behind display text
                             textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
@@ -964,36 +974,36 @@ class CameraFragment : Fragment(),
                 }
 
                 // find if we pressed within any detected card? if so - propose to override
-                for (result in this.cards) {
+                for (cardClassifierZone in this.cardClassifierZones) {
 
-                    val top = result.boundingBox.top * scaleFactor
-                    val bottom = result.boundingBox.bottom * scaleFactor
-                    val left = result.boundingBox.left * scaleFactor
-                    val right = result.boundingBox.right * scaleFactor
+                    val top = cardClassifierZone.boundingBox.top * scaleFactor
+                    val bottom = cardClassifierZone.boundingBox.bottom * scaleFactor
+                    val left = cardClassifierZone.boundingBox.left * scaleFactor
+                    val right = cardClassifierZone.boundingBox.right * scaleFactor
 
                     if (event.rawX > left && event.rawX < right &&
                             event.rawY > top && event.rawY < bottom) {
 
                         // check that it's a card at all
-                        val cardValue = result.getValueOrNull() ?: continue
-                        result.editIsProgress = true
+                        val cardValue = cardClassifierZone.getValue() ?: continue
+                        cardClassifierZone.editIsProgress = true
                         setView(cardValue)
 
                         cancelText.setOnClickListener(View.OnClickListener {
-                            result.editIsProgress = false
+                            cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
                         })
                         updateText.setOnClickListener(View.OnClickListener {
-                            result.overriddenValue = currentDlgCardValue
-                            result.editIsProgress = false
+                            cardClassifierZone.overriddenValue = currentDlgCardValue
+                            cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
                         })
                         deleteText.setOnClickListener(View.OnClickListener {
-                            //this.cards.remove(result)
+                            //this.cardClassifierZones.remove(cardClassifierZone)
                             // doesn't work because we're working in the copy of the list
                             // instead we need to mark this object as forDeletion
-                            result.deleteNextCycle = true
-                            result.editIsProgress = false
+                            cardClassifierZone.deleteNextCycle = true
+                            cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
                         })
 
@@ -1342,7 +1352,7 @@ class CameraFragment : Fragment(),
                 fragmentCameraBinding.overlay.height * 1f / imageHeight)
 
         if (detectorHelper.currentModel == DetectorHelper.MODEL_SETGAME) {
-            scanForSets(bitmapBuffer, imageRotation, this.rawDetectionResults)
+            scanForSets(bitmapBuffer, imageRotation)
         }
 
         this.inferenceTime = SystemClock.uptimeMillis() - startTime
@@ -1352,46 +1362,45 @@ class CameraFragment : Fragment(),
         }
     }
 
-    // setgame specific functions
     private fun scanForSets(
             image: Bitmap,
-            imageRotation: Int,
-            results: List<Detection>) {
-
-        // below starts the SETGAME specific code
-        updateWithNewDetections(image, imageRotation, results)
-
-        // find sets and mark them as groups
-        findSets()
+            imageRotation: Int) {
+        // update classification Zones list with new detection info
+        updateWithNewDetections(image, imageRotation)
+        // recreate list of cards (and find duplicates if exist)
+        recreateCardsMap()
+        // updateSets()
+        // TODO: to remove: find sets and mark them as groups
+        findSetsOldImplementation()
     }
 
     private fun updateWithNewDetections(
             image: Bitmap,
-            imageRotation: Int,
-            results: List<Detection>) {
+            imageRotation: Int) {
 
-        val previousCards = LinkedList<ViewCard>(this.cards)
-        val reDetectedCards = LinkedList<ViewCard>()
         val newDet = LinkedList<Detection>()
-        val newCards = LinkedList<ViewCard>()
+
+        val previousCardZones = LinkedList<CardClassifierZone>(this.cardClassifierZones)
+        val newCardZones = LinkedList<CardClassifierZone>()
+        val reDetectedCardZones = LinkedList<CardClassifierZone>()
 
         // clean up
         outer@while (true){
-            for (card in previousCards) {
+            for (card in previousCardZones) {
                 if (card.deleteNextCycle) {
-                    previousCards.remove(card)
+                    previousCardZones.remove(card)
                     continue@outer
                 }
             }
             break
         }
 
-        outer@for (det in results) {
-            for (card in previousCards) {
+        outer@for (det in this.rawDetectionResults) {
+            for (card in previousCardZones) {
                 if (card.isWithinBoundingBox(det.boundingBox)) {
                     // move to the re-detected list
-                    previousCards.remove(card)
-                    reDetectedCards.add(card)
+                    previousCardZones.remove(card)
+                    reDetectedCardZones.add(card)
 
                     // mark as re-detected & update all info
                     card.updateBoundingBox(det.boundingBox)
@@ -1404,42 +1413,41 @@ class CameraFragment : Fragment(),
             newDet.add(det)
         }
 
-        // try to reClassify redetectedCards if they're timed out
-        // limit this to 5 cards at a time - we'll update them next detection period
+        // try to reClassify redetectedCardZones if they're timed out
+        // limit this to 5 cardZones at a time - we'll update them next detection period
         var reclassifiedCounter = 0
-        for (card in reDetectedCards) {
-            if (!card.isReClassifyCandidate())
+        for (cardZone in reDetectedCardZones) {
+            if (!cardZone.isReClassifyCandidate())
                 continue
-            val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
+            val res = classifierHelper.classify(image, imageRotation, cardZone.boundingBox)
             if (res != null) {
-                card.updateCategories(res)
+                cardZone.updateCategories(res)
             }
             reclassifiedCounter++
             if (reclassifiedCounter > 5)
                 break
         }
 
-        // classify the newly appeared cards in newDet and add the to newCards
+        // classify the newly appeared cardZones in newDet and add the to newCards
         outer@for (det in newDet) {
             // filter overriding detections
-            for (addedCard in newCards) {
-                if (addedCard.isWithinBoundingBox(det.boundingBox))
+            for (addedCardZone in newCardZones) {
+                if (addedCardZone.isWithinBoundingBox(det.boundingBox))
                     continue@outer
             }
             val res = classifierHelper.classify(image, imageRotation, det.boundingBox)
             if (res != null/*&& res.classifications.size > 0 */) {
-                val card = ViewCard(det.boundingBox)
-                card.updateCategories(res)
-                newCards.add(card)
+                val cardZone = CardClassifierZone(det.boundingBox)
+                cardZone.updateCategories(res)
+                newCardZones.add(cardZone)
             }
         }
-        // TODO: cards contains the list non matching cards - we need to handle them
         // try to identify their new position based on the trajectory of redetected cards
         // and redetect them and add to reDetectedCards
         var t: BoundingBoxTransformation? = null
-        for (card in reDetectedCards) {
+        for (cardZone in reDetectedCardZones) {
             // TBD: we're handling only move without zooming, rotating and etc. even though it's possible to try those as well later
-            val xt = card.getLastBoundingBoxTransformation()
+            val xt = cardZone.getLastBoundingBoxTransformation()
             if (xt != null) {
                 t = xt
                 // reset scaling for now to make a more stable result
@@ -1449,34 +1457,59 @@ class CameraFragment : Fragment(),
         }
 
         // we can try to transform and classify
-        for (card in previousCards) {
+        for (cardZone in previousCardZones) {
             if (t != null)
-                card.applyBoundingBoxTransformation(t)
-            val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
+                cardZone.applyBoundingBoxTransformation(t)
+            val res = classifierHelper.classify(image, imageRotation, cardZone.boundingBox)
             if (res != null &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0 &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER][0].score > 0.8){
-                card.updateCategories(res)
-                reDetectedCards.add(card)
-                card.updateDetectedTime()
+                cardZone.updateCategories(res)
+                reDetectedCardZones.add(cardZone)
+                cardZone.updateDetectedTime()
             }else {
-                if (card.overriddenValue != null || !card.isDetectionOutdated()){
-                    reDetectedCards.add(card)
+                if (cardZone.overriddenValue != null || !cardZone.isDetectionOutdated()){
+                    reDetectedCardZones.add(cardZone)
                 }
             }
         }
 
         // update the internal list with all we found
-        this.cards = reDetectedCards
-        this.cards.addAll(newCards)
+        this.cardClassifierZones = reDetectedCardZones
+        this.cardClassifierZones.addAll(newCardZones)
     }
 
-    private fun findSets(): Boolean {
-        var vCardsByName = HashMap<AbstractCard,ViewCard>()
+    private fun recreateCardsMap(){
+        val cards = HashMap<CardValue, ClassifiedCard>()
+        for (zone in this.cardClassifierZones){
+            val cardValue = zone.getValue()
+            if (cardValue != null) {
+                if (!cards.containsKey(cardValue)) {
+                    cards[cardValue] = ClassifiedCard(cardValue)
+                }
+                cards[cardValue]?.zones?.add(zone)
+            }
+        }
+        this.cards = cards
+    }
+
+    private fun updateSets(){
+        val sets = CardSet.findAllSets(this.cards.values.toSet())
+        if (setsFinderMode == SetsFinderMode.AllSets) {
+            // TODO: update existing groups with all sets (keep groupId - color)
+        }else {
+            // TODO: update existing with nonoveralpping sets (keep groupId - color)
+            val nonOverlappingSets = CardSet.findAllNonOverlappingSets(sets)
+        }
+    }
+
+
+    private fun findSetsOldImplementation(): Boolean {
+        var vCardsByName = HashMap<AbstractCard,CardClassifierZone>()
         var inSet = HashSet<AbstractCard>()
         // store all cards to set
-        for (vCard in cards) {
-            var cardVal = vCard.getValueOrNull()
+        for (vCard in cardClassifierZones) {
+            var cardVal = vCard.getValue()
             // add only classified cards
             if (cardVal != null) {
                 val card = SimpleCard(cardVal)
@@ -1491,7 +1524,7 @@ class CameraFragment : Fragment(),
         }
 
         // clean groups
-        for (vCard in cards) {
+        for (vCard in cardClassifierZones) {
             vCard.groups.clear()
         }
 

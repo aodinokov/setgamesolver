@@ -148,7 +148,7 @@ abstract class AbstractCard {
     }
 }
 
-class SimpleCard(private val v: CardValue): AbstractCard() {
+open class SimpleCard(private val v: CardValue): AbstractCard() {
     override fun getValue(): CardValue {
         return v
     }

@@ -219,14 +219,14 @@ class CardSet: HashSet<AbstractCard> {
          *  This function tries to find a combination of sets with maximum number of sets.
          *  If there are several such combinations - it returns all (that's why it returns the list)
          */
-        fun findAllNonOverlappingSets(input: Set<CardSet>): List<Set<CardSet>> {
+        fun findAllNonOverlappingSets(input: Set<CardSet>): Set<Set<CardSet>> {
             for (i in input.indices) {
                 for (j in i+1 until input.size) {
                     if (overlap(input.elementAt(i), input.elementAt(j))) {
                         // build 2 subsets and check them separately
-                        val res1: List<Set<CardSet>> =
+                        val res1: Set<Set<CardSet>> =
                                 findAllNonOverlappingSets(input.minusElement(input.elementAt(j)))
-                        val res2: List<Set<CardSet>> =
+                        val res2: Set<Set<CardSet>> =
                                 findAllNonOverlappingSets(input.minusElement(input.elementAt(i)))
 
                         // we assume that result has at least 1 element. This must be always true
@@ -247,7 +247,7 @@ class CardSet: HashSet<AbstractCard> {
                 }
             }
             // we didn't find any overlaps - we have a ready SET
-            return listOf(input)
+            return setOf(input)
         }
     }
 }

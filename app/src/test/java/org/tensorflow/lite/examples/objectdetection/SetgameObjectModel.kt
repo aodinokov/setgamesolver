@@ -142,10 +142,10 @@ class SetgameObjectModelTest {
         assertTrue(CardNumber.fromInt(CardNumber.THREE.code) == CardNumber.THREE)
         assertTrue(CardNumber.fromInt(300) == null)
         // next & previous
-        for (сardNumber in listOf<CardNumber>(CardNumber.ONE, CardNumber.TWO, CardNumber.THREE)) {
-            assertTrue(CardNumber.next(сardNumber) != сardNumber)
-            assertTrue(CardNumber.previous(сardNumber) != сardNumber)
-            assertTrue(CardNumber.next(сardNumber) != CardNumber.previous(сardNumber))
+        for (cardNumber in listOf<CardNumber>(CardNumber.ONE, CardNumber.TWO, CardNumber.THREE)) {
+            assertTrue(CardNumber.next(cardNumber) != cardNumber)
+            assertTrue(CardNumber.previous(cardNumber) != cardNumber)
+            assertTrue(CardNumber.next(cardNumber) != CardNumber.previous(cardNumber))
         }
     }
 
@@ -189,10 +189,10 @@ class SetgameObjectModelTest {
         assertTrue(CardShading.fromInt(CardShading.EMPTY.code) == CardShading.EMPTY)
         assertTrue(CardShading.fromInt(300) == null)
         // next & previous
-        for (сardShading in listOf<CardShading>(CardShading.SOLID, CardShading.STRIPED, CardShading.EMPTY)) {
-            assertTrue(CardShading.next(сardShading) != сardShading)
-            assertTrue(CardShading.previous(сardShading) != сardShading)
-            assertTrue(CardShading.next(сardShading) != CardShading.previous(сardShading))
+        for (cardShading in listOf<CardShading>(CardShading.SOLID, CardShading.STRIPED, CardShading.EMPTY)) {
+            assertTrue(CardShading.next(cardShading) != cardShading)
+            assertTrue(CardShading.previous(cardShading) != cardShading)
+            assertTrue(CardShading.next(cardShading) != CardShading.previous(cardShading))
         }
     }
 
@@ -231,15 +231,15 @@ class SetgameObjectModelTest {
     }
 
     @Test
-    fun SetCombinationApi() {
+    fun setCombinationApi() {
         fun validateCombination(input: List<String>, expected: Set<String>) {
-            val cards = hashSetOf<AbstractCard>()
+            val cards = CardSet()
             for (i in input) {
                 val value = CardValue.fromString(i)
                 assertTrue(value != null)
                 cards.add(SimpleCard(value!!))
             }
-            val sets = findAllSetCombinations(cards)
+            val sets = CardSet.findAllSets(cards)
             assertTrue(sets.size == expected.size)
             for (i in sets) {
                 assertTrue(expected.contains(i.toString()))
@@ -255,15 +255,15 @@ class SetgameObjectModelTest {
     }
 
     @Test
-    fun NonOverlappingSetCombinationApi() {
+    fun nonOverlappingSetCombinationApi() {
         val cards = hashSetOf<AbstractCard>()
         for (i in validLabels.slice(0..11)) {
             val value = CardValue.fromString(i)
             assertTrue(value != null)
             cards.add(SimpleCard(value!!))
         }
-        val res = findAllNonOverlappingSetCombinations(findAllSetCombinations(cards))
-        assertTrue(res.size > 0)
-        // TBD - check that thereare no duplicated res
+        val res = CardSet.findAllNonOverlappingSets(CardSet.findAllSets(cards))
+        assertTrue(res.isNotEmpty())
+        // TBD - check that there are no duplicated res
     }
 }

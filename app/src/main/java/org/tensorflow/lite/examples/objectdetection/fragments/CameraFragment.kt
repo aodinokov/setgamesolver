@@ -77,8 +77,7 @@ import org.tensorflow.lite.examples.objectdetection.AbstractCard
 import org.tensorflow.lite.examples.objectdetection.ClassifierHelper
 import org.tensorflow.lite.examples.objectdetection.DetectorHelper
 import org.tensorflow.lite.examples.objectdetection.SimpleCard
-import org.tensorflow.lite.examples.objectdetection.findAllNonOverlappingSetCombinations
-import org.tensorflow.lite.examples.objectdetection.findAllSetCombinations
+import org.tensorflow.lite.examples.objectdetection.CardSet
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.vision.detector.Detection
 import java.lang.Float.max
@@ -1486,7 +1485,7 @@ class CameraFragment : Fragment(),
             }
         }
 
-        val solutions = findAllSetCombinations(inSet)
+        val solutions = CardSet.findAllSets(inSet)
         val solutionsMode1 = solutions.sortedBy {
             it.toString()
         }
@@ -1501,7 +1500,7 @@ class CameraFragment : Fragment(),
             // TODO: how to keep the same group from scan to scan?
             var groupId = 0
             for (g in solutionsMode1) {
-                for (c in g.cards) {
+                for (c in g) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
                     assert(vCard != null)
@@ -1516,13 +1515,13 @@ class CameraFragment : Fragment(),
         }
         // mode 2
         var groupId = 0
-        val solutionsMode2 = findAllNonOverlappingSetCombinations(solutions).sortedBy {
+        val solutionsMode2 = CardSet.findAllNonOverlappingSets(solutions).sortedBy {
             it.toString()
         }
         for (ss in solutionsMode2) {
             // for each solutionset
             for (s in ss) {
-                for (c in s.cards) {
+                for (c in s) {
                     //find corresponding vCard
                     var vCard = vCardsByName.get(c)
                     assert(vCard != null)

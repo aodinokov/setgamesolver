@@ -154,12 +154,15 @@ class SimpleCard(private val v: CardValue): AbstractCard() {
     }
 }
 
-// Note: SETS is a SetCombination of 3 cards in accordance with the rules in our model
-data class CardsCombination(val cards: Set<AbstractCard>) {
+// Note: SET is a CardSet of 3 cards in accordance with the rules in our model
+class CardSet: HashSet<AbstractCard> {
+    constructor():super()
+    constructor(collection: Collection<AbstractCard>):super(collection)
+
     override fun toString(): String {
         // sort them within the set
         // so we could compare string names to compare combinations
-        val sorted = cards.sortedBy {
+        val sorted = this.sortedBy {
             it.getValue().number.code*27 +
                     it.getValue().color.code * 9 +
                     it.getValue().shading.code * 3 +
@@ -173,81 +176,80 @@ data class CardsCombination(val cards: Set<AbstractCard>) {
         }
         return "($res)"
     }
-}
-
-// TODO: move this inside SetCombinations.findAllSets as companion object
-/**
- * Convert the input set of card into list of sets 3 cards per each
- * based on the rules of the game
- */
-fun findAllSetCombinations(input: Set<AbstractCard>): Set<CardsCombination> {
-    val result = HashSet<CardsCombination>()
-    for(i in input.indices) {
-        val c0 = input.elementAt(i)
-        for (j in i+1 until input.size) {
-            val c1 = input.elementAt(j)
-            for (k in j+1 until input.size) {
-                val c2 = input.elementAt(k)
-
-                val count = c0.getValue().number.code + c1.getValue().number.code + c2.getValue().number.code
-                val color = c0.getValue().color.code + c1.getValue().color.code + c2.getValue().color.code
-                val shading = c0.getValue().shading.code + c1.getValue().shading.code + c2.getValue().shading.code
-                val shape = c0.getValue().shape.code + c1.getValue().shape.code +c2.getValue().shape.code
-
-                if (    count%3 == 0 &&
-                        color%3 == 0 &&
-                        shading%3 == 0 &&
-                        shape%3 == 0) {
-                    val cardsCombination = CardsCombination(cards = setOf(c0, c1, c2))
-                    result.add(cardsCombination)
+    companion object {
+        private fun overlap(s1: CardSet, s2: CardSet): Boolean {
+            for (c in s1) {
+                if (s2.contains(c)) {
+                    return true
                 }
             }
+            return false
         }
-    }
-    return result
-}
+        /**
+         * Convert the input set of card into list of sets 3 cards per each
+         * based on the rules of the game
+         */
+        fun findAllSets(input: Set<AbstractCard>): Set<CardSet> {
+            val result = HashSet<CardSet>()
+            for(i in input.indices) {
+                val c0 = input.elementAt(i)
+                for (j in i+1 until input.size) {
+                    val c1 = input.elementAt(j)
+                    for (k in j+1 until input.size) {
+                        val c2 = input.elementAt(k)
 
-/**
- *  FindAllSolutions can return Solutions that use the same (overlapping) cards
- *  This function tries to find a combination of sets with maximum number of sets.
- *  If there are several such combinations - it returns all (that's why it returns the list)
- */
-fun findAllNonOverlappingSetCombinations(input: Set<CardsCombination>): List<Set<CardsCombination>> {
-    for (i in input.indices) {
-        for (j in i+1 until input.size) {
-            if (areCombinationsOverlap(input.elementAt(i), input.elementAt(j))) {
-                // build 2 subsets and check them separately
-                val res1: List<Set<CardsCombination>> =
-                        findAllNonOverlappingSetCombinations(input.minus(input.elementAt(j)))
-                val res2: List<Set<CardsCombination>> =
-                        findAllNonOverlappingSetCombinations(input.minus(input.elementAt(i)))
+                        val count = c0.getValue().number.code + c1.getValue().number.code + c2.getValue().number.code
+                        val color = c0.getValue().color.code + c1.getValue().color.code + c2.getValue().color.code
+                        val shading = c0.getValue().shading.code + c1.getValue().shading.code + c2.getValue().shading.code
+                        val shape = c0.getValue().shape.code + c1.getValue().shape.code +c2.getValue().shape.code
 
-                // we assume that result has at least 1 element. This must be always true
-                assert(res1.isNotEmpty())
-                assert(res2.isNotEmpty())
-
-                if (res1.elementAt(0).size == res2.elementAt(0).size) {
-                    // we have got a same number of sets in both cases, they are all interchangeable
-                    // we can merge those solutions and choose any of them
-                    return res1 + res2
+                        if (    count%3 == 0 &&
+                                color%3 == 0 &&
+                                shading%3 == 0 &&
+                                shape%3 == 0) {
+                            result.add(CardSet(setOf(c0, c1, c2)))
+                        }
+                    }
                 }
-                if (res1.elementAt(0).size > res2.elementAt(0).size) {
-                    // the solutions in res1 have more sets
-                    return res1
-                }
-                return res2
             }
+            return result
+        }
+        /**
+         *  FindAllSolutions can return Solutions that use the same (overlapping) cards
+         *  This function tries to find a combination of sets with maximum number of sets.
+         *  If there are several such combinations - it returns all (that's why it returns the list)
+         */
+        fun findAllNonOverlappingSets(input: Set<CardSet>): List<Set<CardSet>> {
+            for (i in input.indices) {
+                for (j in i+1 until input.size) {
+                    if (CardSet.overlap(input.elementAt(i), input.elementAt(j))) {
+                        // build 2 subsets and check them separately
+                        val res1: List<Set<CardSet>> =
+                                findAllNonOverlappingSets(input.minusElement(input.elementAt(j)))
+                        val res2: List<Set<CardSet>> =
+                                findAllNonOverlappingSets(input.minusElement(input.elementAt(i)))
+
+                        // we assume that result has at least 1 element. This must be always true
+                        assert(res1.isNotEmpty())
+                        assert(res2.isNotEmpty())
+
+                        if (res1.elementAt(0).size == res2.elementAt(0).size) {
+                            // we have got a same number of sets in both cases, they are all interchangeable
+                            // we can merge those solutions and choose any of them
+                            return res1 + res2
+                        }
+                        if (res1.elementAt(0).size > res2.elementAt(0).size) {
+                            // the solutions in res1 have more sets
+                            return res1
+                        }
+                        return res2
+                    }
+                }
+            }
+            // we didn't find any overlaps - we have a ready SET
+            return listOf(input)
         }
     }
-    // we didn't find any overlaps - we have a ready SET
-    return listOf(input)
 }
 
-fun areCombinationsOverlap(s1: CardsCombination, s2: CardsCombination): Boolean {
-    for (c in s1.cards) {
-        if (s2.cards.contains(c)) {
-            return true
-        }
-    }
-    return false
-}
+// TODO: move this inside SetCombinations. as companion object

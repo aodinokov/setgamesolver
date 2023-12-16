@@ -348,6 +348,27 @@ class CameraFragment : Fragment(),
     private var cardClassifierZones = LinkedList<CardClassifierZone>()
     /* resulting cards we were able to collect from classifier zones */
     private var cards = HashMap<CardValue, ClassifiedCard>()
+    /* map stores groupId (identifies the color) and set of CardSet
+       in AllSets Mode the set will always contain 1 CardSet
+       in NonOverlappingSets it contains the sorted result of findAllNonOverlappingSets
+       groupId is unique */
+    private var sets = HashMap<String, Pair<Int,Set<CardSet>>>()
+    /* set of deallocated group Ids
+       if group is empty - the next allocated groupID will be sets.size()
+       because it contains all unique allocated groups
+    */
+    private val freeGroupIds = HashSet<Int>()
+    private fun allocateGroupId(nextId: Int): Int {
+        if (freeGroupIds.isEmpty())
+            return nextId
+        val id = freeGroupIds.first()
+        assert(freeGroupIds.remove(id))
+        return id
+    }
+    private fun freeGroupId(id: Int) {
+        assert(!freeGroupIds.contains(id))
+        freeGroupIds.add(id)
+    }
 
     companion object {
         private const val BOUNDING_RECT_TEXT_PADDING = 8
@@ -1369,7 +1390,7 @@ class CameraFragment : Fragment(),
         updateWithNewDetections(image, imageRotation)
         // recreate list of cards (and find duplicates if exist)
         recreateCardsMap()
-        // updateSets()
+        updateSets()
         // TODO: to remove: find sets and mark them as groups
         findSetsOldImplementation()
     }
@@ -1493,14 +1514,50 @@ class CameraFragment : Fragment(),
         this.cards = cards
     }
 
-    private fun updateSets(){
-        val sets = CardSet.findAllSets(this.cards.values.toSet())
-        if (setsFinderMode == SetsFinderMode.AllSets) {
-            // TODO: update existing groups with all sets (keep groupId - color)
+    private fun updateSets() {
+        var newSets = HashMap<String, Pair<Int, Set<CardSet>>>()
+        var prevSets = HashMap(this.sets)
+        val _sets = CardSet.findAllSets(this.cards.values.toSet())
+
+        val hashSets = if (setsFinderMode == SetsFinderMode.AllSets) {
+            val hashSets = HashSet<Set<CardSet>>()
+            for (set in _sets) {
+                hashSets.add(setOf(set))
+            }
+            hashSets
         }else {
-            // TODO: update existing with nonoveralpping sets (keep groupId - color)
-            val nonOverlappingSets = CardSet.findAllNonOverlappingSets(sets)
+            val hashSets = HashSet<Set<CardSet>>()
+            for (set in CardSet.findAllNonOverlappingSets(_sets)) {
+                hashSets.add(set.sortedBy { it.toString() }.toSet())
+            }
+            hashSets
         }
+
+        // move repeated sets from Prev to New
+        val hashOfNewSets = HashSet<Set<CardSet>>()
+        for (sets in hashSets) {
+            val key = sets.toString()
+            if (prevSets.containsKey(key)) {
+                newSets[key] = prevSets[key]!!
+                prevSets.remove(key)
+            } else {
+                hashOfNewSets.add(sets)
+            }
+        }
+
+        // free Ids from non-repeated sets
+        for (pair in prevSets.values) {
+            freeGroupId(pair.first)
+        }
+        prevSets.clear()
+
+        // create newly added
+        for (sets in hashOfNewSets) {
+            val key = sets.toString()
+            newSets[key] = Pair(allocateGroupId(newSets.size), sets)
+        }
+
+        this.sets = newSets
     }
 
 

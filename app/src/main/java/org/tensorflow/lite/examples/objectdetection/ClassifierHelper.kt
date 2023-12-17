@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Alexey Odinokov. All Rights Reserved.
+ * Copyright 2023 Alexey Odinokov. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@ package org.tensorflow.lite.examples.objectdetection
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.RectF
-import android.os.SystemClock
-import android.preference.PreferenceManager
 import android.content.Context
 import android.util.Log
 import android.view.Surface
@@ -28,20 +26,16 @@ import org.tensorflow.lite.examples.objectdetection.fragments.DelegationMode
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
-import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.core.vision.ImageProcessingOptions
 import org.tensorflow.lite.task.vision.classifier.Classifications
 import org.tensorflow.lite.task.vision.classifier.ImageClassifier
-import org.tensorflow.lite.task.vision.detector.Detection
-import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.lang.Double.max
 import java.lang.Double.min
 import java.util.*
-import kotlin.math.absoluteValue
 
 class ClassifierHelper(
         val context: Context,
@@ -50,10 +44,10 @@ class ClassifierHelper(
         var currentDelegate: DelegationMode = DelegationMode.Cpu,
         var classifierErrorListener: ClassifierErrorListener? = null
 ) {
-    private var imageClassifiers: Array<ImageClassifier?> =Array<ImageClassifier?>(4, {null})
+    private var imageClassifiers: Array<ImageClassifier?> =Array(4) { null }
 
     fun clearClassifier() {
-        for (i in 0 until imageClassifiers.size)
+        for (i in imageClassifiers.indices)
             imageClassifiers[i] = null
     }
 
@@ -105,15 +99,15 @@ class ClassifierHelper(
     // Receive the device rotation (Surface.x values range from 0->3) and return EXIF orientation
     // http://jpegclub.org/exif_orientation.html
     private fun getOrientationFromRotation(rotation: Int) : ImageProcessingOptions.Orientation {
-        when (rotation) {
+        return when (rotation) {
             Surface.ROTATION_270 ->
-                return ImageProcessingOptions.Orientation.BOTTOM_RIGHT
+                ImageProcessingOptions.Orientation.BOTTOM_RIGHT
             Surface.ROTATION_180 ->
-                return ImageProcessingOptions.Orientation.RIGHT_BOTTOM
+                ImageProcessingOptions.Orientation.RIGHT_BOTTOM
             Surface.ROTATION_90 ->
-                return ImageProcessingOptions.Orientation.TOP_LEFT
+                ImageProcessingOptions.Orientation.TOP_LEFT
             else ->
-                return ImageProcessingOptions.Orientation.RIGHT_TOP
+                ImageProcessingOptions.Orientation.RIGHT_TOP
         }
     }
 
@@ -165,30 +159,33 @@ class ClassifierHelper(
 
         var h = 0
         var s = 0.0
-        var v = 0.0
+        // v == mx
 
         val mx = max(r,max(g,b))
         val mn = min(r, min(g,b))
         val df = mx - mn
         if (df != 0.0) {
-            if (mx == r) {
-                h = (60.0 * ((g - b) / df) + 360.0).toInt() % 360
-            } else if (mx == g) {
-                h = (60.0 * ((b - r) / df) + 120.0).toInt() % 360
-            } else {
-                h = (60.0 * ((r - g) / df) + 240.0).toInt() % 360
+            h = when (mx) {
+                r -> {
+                    (60.0 * ((g - b) / df) + 360.0).toInt() % 360
+                }
+                g -> {
+                    (60.0 * ((b - r) / df) + 120.0).toInt() % 360
+                }
+                else -> {
+                    (60.0 * ((r - g) / df) + 240.0).toInt() % 360
+                }
             }
         }
         if (mx != 0.0) {
             s = df/ mx
         }
-        v = mx
 
         var shift = 0
         if ((h/5)%2 == 0) {
             shift = 4
         }
-        return adhocColorClassifierColormap!![(v*100).toInt()][(s*100).toInt()][h/10].shl(shift) and 0x0f
+        return adhocColorClassifierColormap!![(mx * 100).toInt()][(s*100).toInt()][h/10].shl(shift) and 0x0f
     }
 
     private fun adhocCardColorGuess(buffer: Bitmap, pixels: IntArray): LinkedList<Category> {
@@ -199,11 +196,11 @@ class ClassifierHelper(
 
         if (buffer.height > buffer.width) {
             // go vertically
-            assert(buffer.width.toInt()>=7)
-            for (x in buffer.width.toInt()/2 -3 until buffer.width.toInt()/2 + 3)
-                for (y in 1*buffer.height.toInt()/4 until 3*buffer.height.toInt()/4) {
+            assert(buffer.width>=7)
+            for (x in buffer.width/2 -3 until buffer.width/2 + 3)
+                for (y in 1*buffer.height/4 until 3*buffer.height/4) {
                     tc +=1
-                    val px = pixels[y*buffer.width.toInt() + x]
+                    val px = pixels[y*buffer.width + x]
                     val flags = getColorFlagsByPixel(px)
                     if (flags != 1 && flags != 2 && flags != 4)
                         continue
@@ -218,11 +215,11 @@ class ClassifierHelper(
                 }
         }else {
             // go horizontally
-            assert(buffer.height.toInt()>=7)
-            for (y in buffer.height.toInt()/2 -3 until buffer.height.toInt()/2 + 3)
-                for (x in 1*buffer.width.toInt()/4 until 3*buffer.width.toInt()/4) {
+            assert(buffer.height>=7)
+            for (y in buffer.height/2 -3 until buffer.height/2 + 3)
+                for (x in 1*buffer.width/4 until 3*buffer.width/4) {
                     tc +=1
-                    val px = pixels[y*buffer.width.toInt() + x]
+                    val px = pixels[y*buffer.width + x]
                     val flags = getColorFlagsByPixel(px)
                     if (flags != 1 && flags != 2 && flags != 4)
                         continue
@@ -239,7 +236,7 @@ class ClassifierHelper(
         if (tc == 0)
             return  LinkedList<Category>()
 
-        var r = LinkedList<Category>()
+        val r = LinkedList<Category>()
         r.add(Category("red", rc.toFloat()/tc.toFloat()))
         r.add(Category("green", rg.toFloat()/tc.toFloat()))
         r.add(Category("purple", rp.toFloat()/tc.toFloat()))
@@ -251,7 +248,7 @@ class ClassifierHelper(
 
     // Mutable buffers for fun classify
     private var buffer: Bitmap = Bitmap.createBitmap(1000, 1000, Bitmap.Config.ARGB_8888)
-    private var pixels = IntArray(1000 * 1000);
+    private var pixels = IntArray(1000 * 1000)
 
     fun extractToBitmap(image: Bitmap, imageRotation: Int, border: RectF, outputBuffer: Bitmap): Boolean {
         var top = border.top.toInt()
@@ -316,16 +313,17 @@ class ClassifierHelper(
             return false
 
         assert(left + width <= image.width &&
-                top + height <= image.height, {
+                top + height <= image.height) {
             "left+width:" + (left + width).toString() +
                     ", top+height" + (top + height).toString() +
                     ", image: " + image.width.toString() + "x" + image.height.toString() +
                     ", rot: " + imageRotation.toString() +
-                    ", initial rect(ltrb): "+  border.left.toInt().toString()+ "x" + border.top.toInt().toString()+ "x" + border.right.toInt().toString()+ "x" + border.bottom.toInt().toString() +
-                    ", left: " + left.toString()+
-                    ", top: "+ top.toString()+
+                    ", initial rect(LxTxRxBx): " + border.left.toInt().toString() + "x" + border.top.toInt().toString() + "x" + border.right.toInt().toString() + "x" + border.bottom.toInt().toString() +
+                    ", left: " + left.toString() +
+                    ", top: " + top.toString() +
                     ", width: " + width.toString() +
-                    ", height: " + height.toString()})
+                    ", height: " + height.toString()
+        }
 
         outputBuffer.width = width
         outputBuffer.height = height
@@ -355,13 +353,13 @@ class ClassifierHelper(
         if (buffer.width < buffer.height)
             classificationRotation = 0
 
-        var r = Array<MutableList<Category>>(imageClassifiers.size, { LinkedList<Category>() })
-        for (i in 0 until imageClassifiers.size) {
+        val r = Array<MutableList<Category>>(imageClassifiers.size) { LinkedList<Category>() }
+        for (i in imageClassifiers.indices) {
             if (i == COLOR_CLASSIFIER)
                 continue /*skip for now*/
             val res = classifyImage(i, buffer, classificationRotation)
 
-            res?.let { it ->
+            res?.let {
                 if (it.isNotEmpty()) {
                     r[i] = it[0].categories
                 }

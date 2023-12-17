@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2022 Alexey Odinokov. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,16 +49,16 @@ class PermissionsFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        when {
+        when (PackageManager.PERMISSION_GRANTED) {
             ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED -> {
+                    requireContext(),
+                    Manifest.permission.CAMERA
+            ) -> {
                 navigateToCamera()
             }
             else -> {
                 requestPermissionLauncher.launch(
-                    Manifest.permission.CAMERA)
+                        Manifest.permission.CAMERA)
             }
         }
     }

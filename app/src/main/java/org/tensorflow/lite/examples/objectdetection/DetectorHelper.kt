@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Alexey Odinokov. All Rights Reserved.
+ * Copyright 2023 Alexey Odinokov. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class DetectorHelper(
     // thread that is using it. CPU and NNAPI delegates can be used with detectors
     // that are created on the main thread and used on a background thread, but
     // the GPU delegate needs to be used on the thread that initialized the detector
-    fun setupDetector() {
+    private fun setupDetector() {
         // Create the base options for the detector using specifies max results and score threshold
         val optionsBuilder =
             ObjectDetector.ObjectDetectorOptions.builder()

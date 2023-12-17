@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2022 Alexey Odinokov. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
     interface DrawListener {
         fun onDraw(canvas: Canvas)
     }
-    var drawListener: DrawListener? = null
+    private var drawListener: DrawListener? = null
     fun setOnDrawListener(listener: DrawListener) {
         drawListener = listener
     }

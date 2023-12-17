@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2023 Alexey Odinokov. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,6 @@ import android.content.res.TypedArray
 import android.graphics.RectF
 import android.os.SystemClock
 import com.google.gson.Gson
-import org.tensorflow.lite.examples.objectdetection.AbstractCard
 import org.tensorflow.lite.examples.objectdetection.ClassifierHelper
 import org.tensorflow.lite.examples.objectdetection.DetectorHelper
 import org.tensorflow.lite.examples.objectdetection.SimpleCard
@@ -95,13 +94,13 @@ class ThumbnailsBitmapHelper(
         val thumbnailsBitmap: Bitmap,
         // maps & weights (higher - bigger)
         val numberWeight: Int = 3,
-        val numberMap: Map<Int,Int>? = null,
+        private val numberMap: Map<Int,Int>? = null,
         val colorWeight: Int = 2,
-        val colorMap: Map<Int,Int>?= null,
+        private val colorMap: Map<Int,Int>?= null,
         val shadingWeight: Int = 1,
-        val shadingMap: Map<Int,Int>?= null,
+        private val shadingMap: Map<Int,Int>?= null,
         val shapeWeight: Int = 0,
-        val shapeMap: Map<Int,Int>?= null) {
+        private val shapeMap: Map<Int,Int>?= null) {
 
     fun getThumbIndex(cardValue: CardValue):Int {
         var number = cardValue.number.code - 1
@@ -131,11 +130,6 @@ class ThumbnailsBitmapHelper(
     fun getSingleThumbBitmap(idx: Int):Bitmap {
         val column = getThumbColumn(idx)
         val row = getThumbRow(idx)
-        val src = Rect(
-                thumbnailsBitmap.width / 9 * column,
-                thumbnailsBitmap.height / 9 * row,
-                thumbnailsBitmap.width / 9 * (column + 1),
-                thumbnailsBitmap.height / 9 * (row + 1))
         return Bitmap.createBitmap(thumbnailsBitmap,
                 thumbnailsBitmap.width / 9 * column,
                 thumbnailsBitmap.height / 9 * row,
@@ -147,7 +141,7 @@ class ThumbnailsBitmapHelper(
 class SelectedCamera(    val auto: Boolean = true,
                          val facing: Int = 0,
                          val cameraId: String = "",
-                         val stringRepresentation: String = "") {
+                         private val stringRepresentation: String = "") {
     override fun toString(): String {
         return stringRepresentation
     }
@@ -155,7 +149,7 @@ class SelectedCamera(    val auto: Boolean = true,
 
 class SelectedCameraResolution(val parent: SelectedCamera,
                                val size: Size,
-                               val stringRepresentation: String = ""
+                               private val stringRepresentation: String = ""
 ){
     override fun toString(): String {
         if (stringRepresentation == "") {
@@ -217,12 +211,12 @@ class CardClassifierZone(var boundingBox: RectF) {
     var deleteNextCycle = false
 
     var overriddenValue: CardValue? = null
-    private var categoriesMax = Array<Category?>(4, {null})
+    private var categoriesMax = Array<Category?>(4) { null }
     fun updateCategories(newCategories: Array<MutableList<Category>>?) {
         if (newCategories == null)
             return
         assert(newCategories.size == categoriesMax.size)
-        for (i in 0 until categoriesMax.size) {
+        for (i in categoriesMax.indices) {
             if (newCategories[i].size == 0)
                 continue
             val newCat = newCategories[i][0]
@@ -231,7 +225,7 @@ class CardClassifierZone(var boundingBox: RectF) {
         }
     }
     fun getCategories(): MutableList<Category> {
-        var res = LinkedList<Category>()
+        val res = LinkedList<Category>()
         if (categoriesMax[0]!= null &&
                 categoriesMax[1]!= null &&
                 categoriesMax[2]!= null &&
@@ -305,7 +299,7 @@ class CameraFragment : Fragment(),
         DetectorHelper.DetectorErrorListener,
         ClassifierHelper.ClassifierErrorListener {
 
-    private val TAG = "ObjectDetection"
+    private val tag = "ObjectDetection"
 
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
 
@@ -348,7 +342,7 @@ class CameraFragment : Fragment(),
        groupId is unique */
     private var sets = HashMap<String, Pair<Int,Set<CardSet>>>()
     /* set of deallocated group Ids
-       if group is empty - the next allocated groupID will be sets.size()
+       if group is empty - the next allocated groupID will be sets.size() (nextId)
        because it contains all unique allocated groups
     */
     private val freeGroupIds = HashSet<Int>()
@@ -356,7 +350,8 @@ class CameraFragment : Fragment(),
         if (freeGroupIds.isEmpty())
             return nextId
         val id = freeGroupIds.first()
-        assert(freeGroupIds.remove(id))
+        val rmResult = freeGroupIds.remove(id)
+        assert(rmResult)
         return id
     }
     private fun freeGroupId(id: Int) {
@@ -413,9 +408,9 @@ class CameraFragment : Fragment(),
                     colorWeight = 1,
                     shapeWeight = 2,
                     shadingWeight = 3,
-                    colorMap = mapOf<Int,Int>(Pair(0,2),Pair(1,1),Pair(2,0)),
-                    shadingMap = mapOf<Int,Int>(Pair(0,2),Pair(1,0),Pair(2,1)),
-                    shapeMap = mapOf<Int,Int>(Pair(0,1),Pair(1,2),Pair(2,0)))
+                    colorMap = mapOf(Pair(0,2),Pair(1,1),Pair(2,0)),
+                    shadingMap = mapOf(Pair(0,2),Pair(1,0),Pair(2,1)),
+                    shapeMap = mapOf(Pair(0,1),Pair(1,2),Pair(2,0)))
         }
 
         // Initialize our background executor
@@ -676,7 +671,7 @@ class CameraFragment : Fragment(),
             val okayText = resolutionDialog.findViewById<TextView>(R.id.okay_text)
             val cancelText = resolutionDialog.findViewById<TextView>(R.id.cancel_text)
 
-            okayText.setOnClickListener(View.OnClickListener {
+            okayText.setOnClickListener {
                 //store preferences
                 val preferences = PreferenceManager.getDefaultSharedPreferences(context)
                 val c = preferences.getString("camera", "")
@@ -699,15 +694,15 @@ class CameraFragment : Fragment(),
                     // restart app to apply the new settings
                     doRestart(requireContext())
                 }
-            })
+            }
 
-            cancelText.setOnClickListener(View.OnClickListener {
+            cancelText.setOnClickListener {
                 resolutionDialog.dismiss()
-            })
+            }
 
             val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
             val camerasList = buildCamerasList(cm)
-            val camerasAdapter = ArrayAdapter<SelectedCamera>(requireContext(), R.layout.spinner_item,  camerasList)
+            val camerasAdapter = ArrayAdapter(requireContext(), R.layout.spinner_item,  camerasList)
             spinnerCamera.adapter = camerasAdapter
             spinnerCamera.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
@@ -716,7 +711,7 @@ class CameraFragment : Fragment(),
                     val camera = upperAdapter.getItem(p2)
                     // update resolution list if resolution has a different selected camera?
                     if (!spinnerResolution.adapter.isEmpty && (spinnerResolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
-                        val adapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, buildCameraResolutionList(cm, camera as SelectedCamera))
+                        val adapter = ArrayAdapter(requireContext(), R.layout.spinner_item, buildCameraResolutionList(cm, camera as SelectedCamera))
                         spinnerResolution.adapter = adapter
                     }
                 }
@@ -735,7 +730,7 @@ class CameraFragment : Fragment(),
                 spinnerCamera.setSelection(ci, false)
 
                 val resolutionList = buildCameraResolutionList(cm, camerasList[ci])
-                val resolutionAdapter = ArrayAdapter<SelectedCameraResolution>(requireContext(), R.layout.spinner_item, resolutionList)
+                val resolutionAdapter = ArrayAdapter(requireContext(), R.layout.spinner_item, resolutionList)
                 spinnerResolution.adapter = resolutionAdapter
 
                 val r = preferences.getString("resolution", resolutionList[0].toString())
@@ -836,9 +831,7 @@ class CameraFragment : Fragment(),
                 val shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 // we have put 9 cards in the row
 
                 val top = boundingBox.top * scaleFactor
-                val bottom = boundingBox.bottom * scaleFactor
                 val left = boundingBox.left * scaleFactor
-                val right = boundingBox.right * scaleFactor
 
                 // Draw rect behind display text
                 textBackgroundPaint.getTextBounds(text, 0, text.length, bounds)
@@ -894,8 +887,8 @@ class CameraFragment : Fragment(),
                 canvas.drawRect(
                         0f,
                         fpsTop,
-                        0f + fpsTextWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                        fpsTop + fpsTextHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                        0f + fpsTextWidth + BOUNDING_RECT_TEXT_PADDING,
+                        fpsTop + fpsTextHeight + BOUNDING_RECT_TEXT_PADDING,
                         textBackgroundPaint
                 )
                 // Draw display text
@@ -924,8 +917,8 @@ class CameraFragment : Fragment(),
                         canvas.drawRect(
                                 boundsF.left + shiftX,
                                 boundsF.top,
-                                boundsF.left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                                boundsF.top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                boundsF.left + shiftX + textWidth + BOUNDING_RECT_TEXT_PADDING,
+                                boundsF.top + textHeight + BOUNDING_RECT_TEXT_PADDING,
                                 textBackgroundPaint
                         )
 
@@ -997,37 +990,37 @@ class CameraFragment : Fragment(),
                     val plusShapeCard = CardValue(currentCardValue.number, currentCardValue.color, currentCardValue.shading, CardShape.next(currentCardValue.shape))
                     // set the picture
                     minusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusCountCard)))
-                    minusCount.setOnClickListener(View.OnClickListener {
+                    minusCount.setOnClickListener {
                         setView(minusCountCard)
-                    })
+                    }
                     plusCount.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusCountCard)))
-                    plusCount.setOnClickListener(View.OnClickListener {
+                    plusCount.setOnClickListener {
                         setView(plusCountCard)
-                    })
+                    }
                     minusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusColorCard)))
-                    minusColor.setOnClickListener(View.OnClickListener {
+                    minusColor.setOnClickListener {
                         setView(minusColorCard)
-                    })
+                    }
                     plusColor.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusColorCard)))
-                    plusColor.setOnClickListener(View.OnClickListener {
+                    plusColor.setOnClickListener {
                         setView(plusColorCard)
-                    })
+                    }
                     minusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusFillCard)))
-                    minusFill.setOnClickListener(View.OnClickListener {
+                    minusFill.setOnClickListener {
                         setView(minusFillCard)
-                    })
+                    }
                     plusFill.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusFillCard)))
-                    plusFill.setOnClickListener(View.OnClickListener {
+                    plusFill.setOnClickListener {
                         setView(plusFillCard)
-                    })
+                    }
                     minusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(minusShapeCard)))
-                    minusShape.setOnClickListener(View.OnClickListener {
+                    minusShape.setOnClickListener {
                         setView(minusShapeCard)
-                    })
+                    }
                     plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusShapeCard)))
-                    plusShape.setOnClickListener(View.OnClickListener {
+                    plusShape.setOnClickListener {
                         setView(plusShapeCard)
-                    })
+                    }
                 }
 
                 // find if we pressed within any detected card? if so - propose to override
@@ -1046,23 +1039,23 @@ class CameraFragment : Fragment(),
                         cardClassifierZone.editIsProgress = true
                         setView(cardValue)
 
-                        cancelText.setOnClickListener(View.OnClickListener {
+                        cancelText.setOnClickListener {
                             cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
-                        })
-                        updateText.setOnClickListener(View.OnClickListener {
+                        }
+                        updateText.setOnClickListener {
                             cardClassifierZone.overriddenValue = currentDlgCardValue
                             cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
-                        })
-                        deleteText.setOnClickListener(View.OnClickListener {
+                        }
+                        deleteText.setOnClickListener {
                             //this.cardClassifierZones.remove(cardClassifierZone)
                             // doesn't work because we're working in the copy of the list
                             // instead we need to mark this object as forDeletion
                             cardClassifierZone.deleteNextCycle = true
                             cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
-                        })
+                        }
 
                         overrideDialog.show()
                         break
@@ -1103,7 +1096,7 @@ class CameraFragment : Fragment(),
         try {
             //check if the context is given
             if (c != null) {
-                //fetch the packagemanager so we can get the default launch activity
+                //fetch the package manager so we can get the default launch activity
                 // (you can replace this intent with any other activity if you want
                 val pm = c.packageManager
                 //check if we got the PackageManager
@@ -1125,16 +1118,16 @@ class CameraFragment : Fragment(),
                         //kill the application - actually doesn't work if next line is uncommented
                         //System.exit(0)
                     } else {
-                        Log.e(TAG, "Was not able to restart application, mStartActivity null")
+                        Log.e(tag, "Was not able to restart application, mStartActivity null")
                     }
                 } else {
-                    Log.e(TAG, "Was not able to restart application, PM null")
+                    Log.e(tag, "Was not able to restart application, PM null")
                 }
             } else {
-                Log.e(TAG, "Was not able to restart application, Context null")
+                Log.e(tag, "Was not able to restart application, Context null")
             }
         } catch (ex: java.lang.Exception) {
-            Log.e(TAG, "Was not able to restart application")
+            Log.e(tag, "Was not able to restart application")
         }
     }
 
@@ -1154,22 +1147,26 @@ class CameraFragment : Fragment(),
     }
 
     private fun convertFacing(apiFacing: Int): Int {
-        if (apiFacing == CameraCharacteristics.LENS_FACING_FRONT) {
-            return 1
-        } else if (apiFacing == CameraCharacteristics.LENS_FACING_BACK) {
-            return 0
-        } else if (apiFacing == CameraCharacteristics.LENS_FACING_EXTERNAL) {
-            return 2
+        return when (apiFacing) {
+            CameraCharacteristics.LENS_FACING_FRONT -> {
+                1
+            }
+            CameraCharacteristics.LENS_FACING_BACK -> {
+                0
+            }
+            CameraCharacteristics.LENS_FACING_EXTERNAL -> {
+                2
+            }
+            else -> -1
         }
-        return -1
     }
 
     private fun buildCamerasList(cameraManager: CameraManager): Array<SelectedCamera> {
         val cameraIdPerFacing = mutableMapOf<Int, MutableList<String>>()
         val cameraSelectFacingConst = resources.getStringArray(R.array.camera_select_facing)
 
-        for (facingId in 0 until cameraSelectFacingConst.size) {
-            cameraIdPerFacing[facingId] = mutableListOf<String>()
+        for (facingId in cameraSelectFacingConst.indices) {
+            cameraIdPerFacing[facingId] = mutableListOf()
         }
 
         // Get the list of camera IDs.
@@ -1183,7 +1180,7 @@ class CameraFragment : Fragment(),
 
         val autoConst = resources.getString(R.string.label_camera_auto)
         val cameras = mutableListOf<SelectedCamera>()
-        for (facingId in 0 until cameraSelectFacingConst.size) {
+        for (facingId in cameraSelectFacingConst.indices) {
             if (cameraIdPerFacing[facingId]!!.size > 0){
                 // add auto
                 cameras.add(SelectedCamera(
@@ -1196,8 +1193,8 @@ class CameraFragment : Fragment(),
                             SelectedCamera(
                                     auto = false,
                                     facing = facingId,
-                                    cameraId = cameraIdPerFacing[facingId]!!.get(id),
-                                    stringRepresentation = cameraIdPerFacing[facingId]!!.get(id)+ "-"+cameraSelectFacingConst[facingId]))
+                                    cameraId = cameraIdPerFacing[facingId]!![id],
+                                    stringRepresentation = cameraIdPerFacing[facingId]!![id] + "-"+cameraSelectFacingConst[facingId]))
                 }
             }
         }
@@ -1228,13 +1225,14 @@ class CameraFragment : Fragment(),
 
             // merge sizes into cameraResolutions
             outputSizes?.forEach {
-                cameraResolutions.put(it.toString(), SelectedCameraResolution(
+                cameraResolutions[it.toString()] = SelectedCameraResolution(
                     parent = camera,
-                    size = it)) }
+                    size = it)
+            }
 
         }
 
-        if (cameraResolutions.size == 0) {
+        if (cameraResolutions.isEmpty()) {
             return emptyArray()
         }
 
@@ -1285,27 +1283,27 @@ class CameraFragment : Fragment(),
         val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
 
-        val cameras_list = buildCamerasList(cm)
-        val c = preferences.getString("camera", cameras_list[0].toString())
+        val camerasList = buildCamerasList(cm)
+        val c = preferences.getString("camera", camerasList[0].toString())
         // find the current id
-        var ci = cameras_list.indexOfFirst { it.toString() == c }
+        var ci = camerasList.indexOfFirst { it.toString() == c }
         if (ci < 0){ ci = 0}
 
-        val resolution_list = buildCameraResolutionList(cm, cameras_list[ci])
-        val r = preferences.getString("resolution", resolution_list[0].toString())
+        val resolutionList = buildCameraResolutionList(cm, camerasList[ci])
+        val r = preferences.getString("resolution", resolutionList[0].toString())
         // find the resolution id
-        var ri = resolution_list.indexOfFirst { it.toString() == r }
+        var ri = resolutionList.indexOfFirst { it.toString() == r }
         if (ri < 0){ ri = 0}
 
-        val selectedCamera = cameras_list[ci]
-        val selectedCameraResolution = resolution_list[ri]
+        val selectedCamera = camerasList[ci]
+        val selectedCameraResolution = resolutionList[ri]
         val failsafeStartMode = preferences.getBoolean("failsafe_start", false)
 
         // CameraProvider
         val cameraProvider =
             cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
 
-        val availableCameraInfos = cameraProvider.getAvailableCameraInfos();
+        val availableCameraInfo = cameraProvider.availableCameraInfos
 
         val editor = preferences.edit()
         // starting the critical initialization part
@@ -1313,7 +1311,7 @@ class CameraFragment : Fragment(),
         editor.apply()
 
         // CameraSelector - makes assumption that we're only using the back camera
-        var cameraSelector: CameraSelector? = null
+        val cameraSelector: CameraSelector?
         if (selectedCamera.auto) {
             var facing = CameraSelector.LENS_FACING_BACK
             if (selectedCamera.facing == 1) {
@@ -1323,7 +1321,7 @@ class CameraFragment : Fragment(),
                     .requireLensFacing(facing)
                     .build()
         } else {
-            cameraSelector = availableCameraInfos.get(selectedCamera.cameraId.toInt()).cameraSelector
+            cameraSelector = availableCameraInfo[selectedCamera.cameraId.toInt()].cameraSelector
         }
 
         var previewBuilder = Preview.Builder()
@@ -1374,7 +1372,7 @@ class CameraFragment : Fragment(),
             // Attach the viewfinder's surface provider to preview use case
             preview?.setSurfaceProvider(fragmentCameraBinding.viewFinder.surfaceProvider)
         } catch (exc: Exception) {
-            Log.e(TAG, "Use case binding failed", exc)
+            Log.e(tag, "Use case binding failed", exc)
         }
 
         // passed the critical initialization part
@@ -1400,7 +1398,7 @@ class CameraFragment : Fragment(),
 
         // Update UI after objects have been detected. Extracts original image height/width
         // to scale and place bounding boxes properly through OverlayView
-        this.rawDetectionResults = detectedTriple.first as List<Detection>? ?: LinkedList<Detection>()
+        this.rawDetectionResults = detectedTriple.first ?: LinkedList<Detection>()
 
         val imageHeight: Int = detectedTriple.second
         val imageWidth: Int = detectedTriple.third
@@ -1428,7 +1426,7 @@ class CameraFragment : Fragment(),
             imageRotation: Int) {
         val newDet = LinkedList<Detection>()
 
-        val previousCardZones = LinkedList<CardClassifierZone>(this.cardClassifierZones)
+        val previousCardZones = LinkedList(this.cardClassifierZones)
         val newCardZones = LinkedList<CardClassifierZone>()
         val reDetectedCardZones = LinkedList<CardClassifierZone>()
 
@@ -1461,7 +1459,7 @@ class CameraFragment : Fragment(),
             newDet.add(det)
         }
 
-        // try to reClassify redetectedCardZones if they're timed out
+        // try to reClassify reDetectedCardZones if they're timed out
         // limit this to 5 cardZones at a time - we'll update them next detection period
         var reclassifiedCounter = 0
         for (cardZone in reDetectedCardZones) {
@@ -1490,8 +1488,8 @@ class CameraFragment : Fragment(),
                 newCardZones.add(cardZone)
             }
         }
-        // try to identify their new position based on the trajectory of redetected cards
-        // and redetect them and add to reDetectedCards
+        // try to identify their new position based on the trajectory of reDetected cards
+        // and re-detect them and add to reDetectedCards
         var t: BoundingBoxTransformation? = null
         for (cardZone in reDetectedCardZones) {
             // TBD: we're handling only move without zooming, rotating and etc. even though it's possible to try those as well later
@@ -1547,19 +1545,19 @@ class CameraFragment : Fragment(),
             }
         }
 
-        var newSets = HashMap<String, Pair<Int, Set<CardSet>>>()
-        var prevSets = HashMap(this.sets)
-        val _sets = CardSet.findAllSets(cards.values.toSet())
+        val newSets = HashMap<String, Pair<Int, Set<CardSet>>>()
+        val prevSets = HashMap(this.sets)
+        val allSets = CardSet.findAllSets(cards.values.toSet())
 
         val hashSets = if (setsFinderMode == SetsFinderMode.AllSets) {
             val hashSets = HashSet<Set<CardSet>>()
-            for (set in _sets) {
+            for (set in allSets) {
                 hashSets.add(setOf(set))
             }
             hashSets
         }else {
             val hashSets = HashSet<Set<CardSet>>()
-            for (set in CardSet.findAllNonOverlappingSets(_sets)) {
+            for (set in CardSet.findAllNonOverlappingSets(allSets)) {
                 hashSets.add(set.sortedBy { it.toString() }.toSet())
             }
             hashSets

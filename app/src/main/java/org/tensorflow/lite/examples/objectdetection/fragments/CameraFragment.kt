@@ -22,16 +22,20 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.content.res.TypedArray
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.preference.PreferenceManager
 import android.util.Log
 import android.util.Size
@@ -57,30 +61,27 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
+import com.google.gson.Gson
 import org.tensorflow.lite.examples.objectdetection.CardColor
 import org.tensorflow.lite.examples.objectdetection.CardNumber
+import org.tensorflow.lite.examples.objectdetection.CardSet
 import org.tensorflow.lite.examples.objectdetection.CardShading
 import org.tensorflow.lite.examples.objectdetection.CardShape
 import org.tensorflow.lite.examples.objectdetection.CardValue
-import org.tensorflow.lite.examples.objectdetection.OverlayView
-import org.tensorflow.lite.examples.objectdetection.R
-import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
-import java.util.LinkedList
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import kotlin.math.pow
-import android.content.res.TypedArray
-import android.graphics.RectF
-import android.os.SystemClock
-import com.google.gson.Gson
 import org.tensorflow.lite.examples.objectdetection.ClassifierHelper
 import org.tensorflow.lite.examples.objectdetection.DetectorHelper
+import org.tensorflow.lite.examples.objectdetection.OverlayView
+import org.tensorflow.lite.examples.objectdetection.R
 import org.tensorflow.lite.examples.objectdetection.SimpleCard
-import org.tensorflow.lite.examples.objectdetection.CardSet
+import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.vision.detector.Detection
 import java.lang.Float.max
+import java.util.LinkedList
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.math.absoluteValue
+import kotlin.math.pow
 
 enum class SetsFinderMode(val mode: Int) {
     AllSets(0),
@@ -319,6 +320,9 @@ class CameraFragment : Fragment(),
     private lateinit var classifierHelper: ClassifierHelper
 
     private lateinit var bitmapBuffer: Bitmap
+    /** for static picture mode */
+    private var bitmapStaticBufferOriginal: Bitmap? = null
+    private var bitmapStaticBufferRotated: Bitmap? = null
     /** Blocking camera operations are performed using this executor */
     private lateinit var cameraExecutor: ExecutorService
 
@@ -898,57 +902,63 @@ class CameraFragment : Fragment(),
                 if (scanMode == ScanMode.Idle)
                     return
 
-                // Generate fps text
-                var fpsText = "fps:inf"
-                if (inferenceTime > 0) {  // inferenceTime is in ms
-                    fpsText = String.format("fps:%2.0f", 1000.0/inferenceTime.toFloat())
-                }
-                textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
-                // Draw rect behind display text
-                val fpsTop = 0f
-                val fpsTextWidth = bounds.width()
-                val fpsTextHeight = bounds.height()
-                canvas.drawRect(
-                        0f,
-                        fpsTop,
-                        0f + fpsTextWidth + BOUNDING_RECT_TEXT_PADDING,
-                        fpsTop + fpsTextHeight + BOUNDING_RECT_TEXT_PADDING,
-                        textBackgroundPaint
-                )
-                // Draw display text
-                canvas.drawText(fpsText, 0f, fpsTop + bounds.height(), textPaint)
-
-                //show raw results
-                for (result in rawDetectionResults) {
-                    boundsF.top = result.boundingBox.top * scaleFactor
-                    boundsF.bottom = result.boundingBox.bottom * scaleFactor
-                    boundsF.left = result.boundingBox.left * scaleFactor
-                    boundsF.right = result.boundingBox.right * scaleFactor
-
-                    // Draw bounding box around detected objects
-                    canvas.drawRect(boundsF, boxPaint)
-
-                    // Create text to display alongside detected objects
-                    if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.categories.size > 0) {
-                        val shiftX = 0
-                        val label = result.categories[0].label + " "
-                        val drawableText = label + String.format("%.2f", result.categories[0].score)
-
-                        // Draw rect behind display text
-                        textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
-                        val textWidth = bounds.width()
-                        val textHeight = bounds.height()
-                        canvas.drawRect(
-                                boundsF.left + shiftX,
-                                boundsF.top,
-                                boundsF.left + shiftX + textWidth + BOUNDING_RECT_TEXT_PADDING,
-                                boundsF.top + textHeight + BOUNDING_RECT_TEXT_PADDING,
-                                textBackgroundPaint
-                        )
-
-                        // Draw text for detected object
-                        canvas.drawText(drawableText, boundsF.left + shiftX, boundsF.top + bounds.height(), textPaint)
+                if (scanMode == ScanMode.Camera) {
+                    // Generate fps text
+                    var fpsText = "fps:inf"
+                    if (inferenceTime > 0) {  // inferenceTime is in ms
+                        fpsText = String.format("fps:%2.0f", 1000.0 / inferenceTime.toFloat())
                     }
+                    textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
+                    // Draw rect behind display text
+                    val fpsTop = 0f
+                    val fpsTextWidth = bounds.width()
+                    val fpsTextHeight = bounds.height()
+                    canvas.drawRect(
+                            0f,
+                            fpsTop,
+                            0f + fpsTextWidth + BOUNDING_RECT_TEXT_PADDING,
+                            fpsTop + fpsTextHeight + BOUNDING_RECT_TEXT_PADDING,
+                            textBackgroundPaint
+                    )
+                    // Draw display text
+                    canvas.drawText(fpsText, 0f, fpsTop + bounds.height(), textPaint)
+
+                    //show raw results
+                    for (result in rawDetectionResults) {
+                        boundsF.top = result.boundingBox.top * scaleFactor
+                        boundsF.bottom = result.boundingBox.bottom * scaleFactor
+                        boundsF.left = result.boundingBox.left * scaleFactor
+                        boundsF.right = result.boundingBox.right * scaleFactor
+
+                        // Draw bounding box around detected objects
+                        canvas.drawRect(boundsF, boxPaint)
+
+                        // Create text to display alongside detected objects
+                        if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.categories.size > 0) {
+                            val shiftX = 0
+                            val label = result.categories[0].label + " "
+                            val drawableText = label + String.format("%.2f", result.categories[0].score)
+
+                            // Draw rect behind display text
+                            textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
+                            val textWidth = bounds.width()
+                            val textHeight = bounds.height()
+                            canvas.drawRect(
+                                    boundsF.left + shiftX,
+                                    boundsF.top,
+                                    boundsF.left + shiftX + textWidth + BOUNDING_RECT_TEXT_PADDING,
+                                    boundsF.top + textHeight + BOUNDING_RECT_TEXT_PADDING,
+                                    textBackgroundPaint
+                            )
+
+                            // Draw text for detected object
+                            canvas.drawText(drawableText, boundsF.left + shiftX, boundsF.top + bounds.height(), textPaint)
+                        }
+                    }
+                }
+
+                if (scanMode == ScanMode.StaticPicture && bitmapStaticBufferRotated != null) {
+                    canvas.drawBitmap(bitmapStaticBufferRotated!!, 0.0f, 0.0f, textBackgroundPaint)
                 }
 
                 // show zones, cardValues, duplicates and sets
@@ -959,7 +969,7 @@ class CameraFragment : Fragment(),
                                    zone.boundingBox,
                                    card.getValue(),
                                    duplicate = card.zones.size > 1)
-                           if (zone.overriddenValue == null) {
+                           if (scanMode == ScanMode.Camera && zone.overriddenValue == null) {
                                val drawableText = String.format("%.2f", zone.getCategories()[0].score)
                                drawCardText(canvas, zone.boundingBox, drawableText)
                            }
@@ -1049,6 +1059,15 @@ class CameraFragment : Fragment(),
                         setView(plusShapeCard)
                     }
                 }
+                fun forceRedrawIfNeeded() {
+                    // in case of camera we are permanently re-drawing
+                    if (scanMode == ScanMode.StaticPicture) {
+                        updateSets()
+                        activity?.runOnUiThread {  // Force a redraw
+                            fragmentCameraBinding.overlay.invalidate()
+                        }
+                    }
+                }
 
                 // find if we pressed within any detected card? if so - propose to override
                 for (cardClassifierZone in this.cardClassifierZones) {
@@ -1074,6 +1093,7 @@ class CameraFragment : Fragment(),
                             cardClassifierZone.overriddenValue = currentDlgCardValue
                             cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
+                            forceRedrawIfNeeded()
                         }
                         deleteText.setOnClickListener {
                             //this.cardClassifierZones.remove(cardClassifierZone)
@@ -1082,8 +1102,8 @@ class CameraFragment : Fragment(),
                             cardClassifierZone.deleteNextCycle = true
                             cardClassifierZone.editIsProgress = false
                             overrideDialog.dismiss()
+                            forceRedrawIfNeeded()
                         }
-
                         overrideDialog.show()
                         break
                     }
@@ -1414,16 +1434,40 @@ class CameraFragment : Fragment(),
     }
 
     private fun scanObjects(image: ImageProxy) {
+        val imageRotation = image.imageInfo.rotationDegrees
         // Copy out RGB bits to the shared bitmap buffer
         // NOTE: we must do it even if we don't detect anything
         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
 
-        //if (scanMode == ScanMode.StaticPicture && no picture? copy bitmapBuffer)
+        if (scanMode == ScanMode.StaticPicture) {
+            if (bitmapStaticBufferOriginal == null) {
+                bitmapStaticBufferOriginal = Bitmap.createBitmap(bitmapBuffer)
+                if (bitmapStaticBufferRotated != null) {
+                    bitmapStaticBufferRotated!!.recycle()
+                    bitmapStaticBufferRotated = null
+                }
+                val matrix = Matrix()
+                matrix.postRotate(imageRotation.toFloat())
+                // copy bitmapBuffer and rotate
+                bitmapStaticBufferRotated = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
+                activity?.runOnUiThread {
+                    // Force a redraw
+                    fragmentCameraBinding.overlay.invalidate()
+                }
+            }
+        } else {
+            if (bitmapStaticBufferRotated != null){
+                bitmapStaticBufferRotated!!.recycle()
+                bitmapStaticBufferRotated = null
+            }
+            if (bitmapStaticBufferOriginal != null){
+                bitmapStaticBufferOriginal!!.recycle()
+                bitmapStaticBufferOriginal = null
+            }
+        }
 
         if(scanMode != ScanMode.Camera)
             return
-
-        val imageRotation = image.imageInfo.rotationDegrees
 
         // count time
         val startTime = SystemClock.uptimeMillis()

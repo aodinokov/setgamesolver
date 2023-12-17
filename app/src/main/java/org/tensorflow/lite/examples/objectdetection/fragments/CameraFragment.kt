@@ -273,13 +273,6 @@ class CardClassifierZone(var boundingBox: RectF) {
             return false
         return SystemClock.uptimeMillis() - detectedTime < 1500 // can be in cycles, not in real time. what is better?
     }
-
-    // TODO: to remove
-    public var groups = HashSet<Int>()
-    // Group-able interface impl
-    fun getGroupIds(): Set<Int> {
-        return groups
-    }
 }
 
 /**
@@ -289,6 +282,7 @@ class CardClassifierZone(var boundingBox: RectF) {
  */
 class ClassifiedCard(v: CardValue): SimpleCard(v) {
     val zones = LinkedList<CardClassifierZone>()
+    val groupIds = HashSet<Int>()
 }
 
 enum class DelegationMode(val mode: Int) {
@@ -757,11 +751,13 @@ class CameraFragment : Fragment(),
         fragmentCameraBinding.overlay.setOnDrawListener(object : OverlayView.DrawListener {
             // colors
             private var boxPaint = Paint()
+            private var duplicatePaint = Paint()
             private var textBackgroundPaint = Paint()
             private var textPaint = Paint()
             private var groupBoxPaintMap = HashMap<Int, Paint>()
-            // tmp
+            // make tmp vars here to save time in draw function
             private var bounds = Rect()
+            private var boundsF = RectF()
             init {
                 textBackgroundPaint.color = Color.BLACK
                 textBackgroundPaint.style = Paint.Style.FILL
@@ -775,6 +771,11 @@ class CameraFragment : Fragment(),
                 boxPaint.strokeWidth = 8F
                 boxPaint.style = Paint.Style.STROKE
 
+                duplicatePaint.color = ContextCompat.getColor(requireContext(), R.color.duplicate_box_color)
+                //duplicatePaint.strokeWidth = 8F
+                duplicatePaint.style = Paint.Style.FILL
+                duplicatePaint.alpha = 63
+
                 // init colors for groups
                 groupBoxPaintMap.clear()
                 val colors: TypedArray = resources.obtainTypedArray(R.array.groupColors)
@@ -787,19 +788,107 @@ class CameraFragment : Fragment(),
                 }
                 colors.recycle()
             }
+
+            private fun drawCardValue(canvas: Canvas,
+                                      boundingBox: RectF,
+                                      cardValue: CardValue,
+                                      duplicate: Boolean = false){
+                val top = boundingBox.top * scaleFactor
+                val left = boundingBox.left * scaleFactor
+
+                assert(thumbnailsBitmapHelper != null)
+
+                // Create text to display alongside detected objects
+                val idx = thumbnailsBitmapHelper!!.getThumbIndex(cardValue)
+                val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
+                val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
+
+                bounds.set(
+                        thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 * column,
+                        thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9 * row,
+                        thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 * (column + 1),
+                        thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9 * (row + 1))
+                boundsF.set(
+                        left,
+                        top,
+                        left + thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9,
+                        top + thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9)
+
+                canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap,
+                        bounds,
+                        boundsF,
+                        textBackgroundPaint
+                )
+                if (duplicate) {
+                    canvas.drawRect(
+                            left,
+                            top,
+                            left + thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9,
+                            top + thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9,
+                            duplicatePaint)
+                }
+            }
+
+            private fun drawCardText(canvas: Canvas,
+                                     boundingBox: RectF,
+                                     text: String) {
+                assert(thumbnailsBitmapHelper != null)
+                val shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 // we have put 9 cards in the row
+
+                val top = boundingBox.top * scaleFactor
+                val bottom = boundingBox.bottom * scaleFactor
+                val left = boundingBox.left * scaleFactor
+                val right = boundingBox.right * scaleFactor
+
+                // Draw rect behind display text
+                textBackgroundPaint.getTextBounds(text, 0, text.length, bounds)
+                val textWidth = bounds.width()
+                val textHeight = bounds.height()
+                canvas.drawRect(
+                        left + shiftX,
+                        top,
+                        left + shiftX + textWidth + BOUNDING_RECT_TEXT_PADDING,
+                        top + textHeight + BOUNDING_RECT_TEXT_PADDING,
+                        textBackgroundPaint
+                )
+
+                // Draw text for detected object
+                canvas.drawText(text, left + shiftX, top + bounds.height(), textPaint)
+            }
+
+            private fun drawCardGroups(canvas: Canvas, boundingBox: RectF, groupIds: Set<Int>) {
+                val top = boundingBox.top * scaleFactor
+                val bottom = boundingBox.bottom * scaleFactor
+                val left = boundingBox.left * scaleFactor
+                val right = boundingBox.right * scaleFactor
+
+                // Draw bounding box around detected objects
+                boundsF.set(left, top, right, bottom)
+                val drawableRect = boundsF
+                for(groupId in groupIds.sortedBy { it }) {
+                    assert(groupBoxPaintMap.size > 0)
+                    val pb = groupBoxPaintMap[groupId%groupBoxPaintMap.size]!!
+                    canvas.drawRect(drawableRect, pb)
+                    // make all groups visible
+                    drawableRect.left -= pb.strokeWidth
+                    drawableRect.top -= pb.strokeWidth
+                    drawableRect.bottom += pb.strokeWidth
+                    drawableRect.right += pb.strokeWidth
+                }
+            }
+
             override fun onDraw(canvas: Canvas){
                 if (!scanIsInProgress)
                     return
 
-                // show fps
-                val fpsTop = 0f
+                // Generate fps text
                 var fpsText = "fps:inf"
-                if (inferenceTime > 0) {
-                    // inferenceTime is in ms
+                if (inferenceTime > 0) {  // inferenceTime is in ms
                     fpsText = String.format("fps:%2.0f", 1000.0/inferenceTime.toFloat())
                 }
-                // Draw rect behind display text
                 textBackgroundPaint.getTextBounds(fpsText, 0, fpsText.length, bounds)
+                // Draw rect behind display text
+                val fpsTop = 0f
                 val fpsTextWidth = bounds.width()
                 val fpsTextHeight = bounds.height()
                 canvas.drawRect(
@@ -809,23 +898,21 @@ class CameraFragment : Fragment(),
                         fpsTop + fpsTextHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
                         textBackgroundPaint
                 )
-                // Draw text for detected object
-                canvas.drawText(fpsText, 0f, fpsTop+bounds.height(), textPaint)
+                // Draw display text
+                canvas.drawText(fpsText, 0f, fpsTop + bounds.height(), textPaint)
 
                 //show raw results
                 for (result in rawDetectionResults) {
-                    val boundingBox = result.getBoundingBox()
-
-                    val top = boundingBox.top * scaleFactor
-                    val bottom = boundingBox.bottom * scaleFactor
-                    val left = boundingBox.left * scaleFactor
-                    val right = boundingBox.right * scaleFactor
+                    boundsF.top = result.boundingBox.top * scaleFactor
+                    boundsF.bottom = result.boundingBox.bottom * scaleFactor
+                    boundsF.left = result.boundingBox.left * scaleFactor
+                    boundsF.right = result.boundingBox.right * scaleFactor
 
                     // Draw bounding box around detected objects
-                    canvas.drawRect(RectF(left, top, right, bottom), boxPaint)
+                    canvas.drawRect(boundsF, boxPaint)
 
+                    // Create text to display alongside detected objects
                     if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.categories.size > 0) {
-                        // Create text to display alongside detected objects
                         val shiftX = 0
                         val label = result.categories[0].label + " "
                         val drawableText = label + String.format("%.2f", result.categories[0].score)
@@ -835,86 +922,35 @@ class CameraFragment : Fragment(),
                         val textWidth = bounds.width()
                         val textHeight = bounds.height()
                         canvas.drawRect(
-                                left + shiftX,
-                                top,
-                                left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                                top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                boundsF.left + shiftX,
+                                boundsF.top,
+                                boundsF.left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
+                                boundsF.top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
                                 textBackgroundPaint
                         )
 
                         // Draw text for detected object
-                        canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
+                        canvas.drawText(drawableText, boundsF.left + shiftX, boundsF.top + bounds.height(), textPaint)
                     }
                 }
-                // TODO: to rework
-                // show cards
-                assert(thumbnailsBitmapHelper != null)
-                for (cardClassifierZone in cardClassifierZones) {
-                    val boundingBox = cardClassifierZone.boundingBox
 
-                    val top = boundingBox.top * scaleFactor
-                    val bottom = boundingBox.bottom * scaleFactor
-                    val left = boundingBox.left * scaleFactor
-                    val right = boundingBox.right * scaleFactor
-
-                    // Draw bounding box around detected objects
-                    val drawableRect = RectF(left, top, right, bottom)
-                        for(groupId in cardClassifierZone.getGroupIds()) {
-                            assert(groupBoxPaintMap.size > 0)
-                            val pb = groupBoxPaintMap.get(groupId%groupBoxPaintMap.size)!!
-                            canvas.drawRect(drawableRect, pb)
-                            // make all groups visible
-                            drawableRect.left -= pb.strokeWidth
-                            drawableRect.top -= pb.strokeWidth
-                            drawableRect.bottom += pb.strokeWidth
-                            drawableRect.right += pb.strokeWidth
-                        }
-                    val cardValue = cardClassifierZone.getValue()
-                    if (cardValue != null) {
-                        // Create text to display alongside detected objects
-                        val shiftX = thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 // we have put 9 cards in the row
-
-                        val idx = thumbnailsBitmapHelper!!.getThumbIndex(cardValue)
-                        val column = thumbnailsBitmapHelper!!.getThumbColumn(idx)
-                        val row = thumbnailsBitmapHelper!!.getThumbRow(idx)
-
-                        val src = Rect(
-                                thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 * column,
-                                thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9 * row,
-                                thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9 * (column + 1),
-                                thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9 * (row + 1))
-                        val dst = RectF(
-                                left,
-                                top,
-                                left + thumbnailsBitmapHelper!!.thumbnailsBitmap.width / 9,
-                                top + thumbnailsBitmapHelper!!.thumbnailsBitmap.height / 9)
-
-                        canvas.drawBitmap(thumbnailsBitmapHelper!!.thumbnailsBitmap,
-                                src,
-                                dst,
-                                textBackgroundPaint
-                        )
-
-                        // show only if it's not override
-                        if (cardClassifierZone.overriddenValue == null) {
-                            val drawableText = String.format("%.2f", cardClassifierZone.getCategories()[0].score)
-
-                            // Draw rect behind display text
-                            textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
-                            val textWidth = bounds.width()
-                            val textHeight = bounds.height()
-                            canvas.drawRect(
-                                    left + shiftX,
-                                    top,
-                                    left + shiftX + textWidth + Companion.BOUNDING_RECT_TEXT_PADDING,
-                                    top + textHeight + Companion.BOUNDING_RECT_TEXT_PADDING,
-                                    textBackgroundPaint
-                            )
-
-                            // Draw text for detected object
-                            canvas.drawText(drawableText, left + shiftX, top + bounds.height(), textPaint)
-                        }
-                    }
+                // show zones, cardValues, duplicates and sets
+                if (detectorHelper.currentModel == DetectorHelper.MODEL_SETGAME) {
+                   for (card in cards.values){
+                       for (zone in card.zones){
+                           drawCardValue(canvas,
+                                   zone.boundingBox,
+                                   card.getValue(),
+                                   duplicate = card.zones.size > 1)
+                           if (zone.overriddenValue == null) {
+                               val drawableText = String.format("%.2f", zone.getCategories()[0].score)
+                               drawCardText(canvas, zone.boundingBox, drawableText)
+                           }
+                           drawCardGroups(canvas,
+                                   zone.boundingBox,
+                                   card.groupIds)
+                       }
+                   }
                 }
             }
         })
@@ -1002,8 +1038,8 @@ class CameraFragment : Fragment(),
                     val left = cardClassifierZone.boundingBox.left * scaleFactor
                     val right = cardClassifierZone.boundingBox.right * scaleFactor
 
-                    if (event.rawX > left && event.rawX < right &&
-                            event.rawY > top && event.rawY < bottom) {
+                    if (event.x > left && event.x < right &&
+                            event.y > top && event.y < bottom) {
 
                         // check that it's a card at all
                         val cardValue = cardClassifierZone.getValue() ?: continue
@@ -1373,7 +1409,11 @@ class CameraFragment : Fragment(),
                 fragmentCameraBinding.overlay.height * 1f / imageHeight)
 
         if (detectorHelper.currentModel == DetectorHelper.MODEL_SETGAME) {
-            scanForSets(bitmapBuffer, imageRotation)
+            // update classification Zones list with new detection info
+            updateWithNewDetections(bitmapBuffer, imageRotation)
+            // recreate list of cards (and find duplicates if exist)
+            // update set map and update cards with their groupId
+            updateSets()
         }
 
         this.inferenceTime = SystemClock.uptimeMillis() - startTime
@@ -1383,22 +1423,9 @@ class CameraFragment : Fragment(),
         }
     }
 
-    private fun scanForSets(
-            image: Bitmap,
-            imageRotation: Int) {
-        // update classification Zones list with new detection info
-        updateWithNewDetections(image, imageRotation)
-        // recreate list of cards (and find duplicates if exist)
-        recreateCardsMap()
-        updateSets()
-        // TODO: to remove: find sets and mark them as groups
-        findSetsOldImplementation()
-    }
-
     private fun updateWithNewDetections(
             image: Bitmap,
             imageRotation: Int) {
-
         val newDet = LinkedList<Detection>()
 
         val previousCardZones = LinkedList<CardClassifierZone>(this.cardClassifierZones)
@@ -1500,24 +1527,29 @@ class CameraFragment : Fragment(),
         this.cardClassifierZones.addAll(newCardZones)
     }
 
-    private fun recreateCardsMap(){
+    private fun updateSets() {
         val cards = HashMap<CardValue, ClassifiedCard>()
         for (zone in this.cardClassifierZones){
             val cardValue = zone.getValue()
             if (cardValue != null) {
                 if (!cards.containsKey(cardValue)) {
-                    cards[cardValue] = ClassifiedCard(cardValue)
+                    // let's try to re-use the objects if they exist so we do less mem allocations
+                    if (this.cards.containsKey(cardValue)) {
+                        val oldCardObj = this.cards[cardValue]!!
+                        oldCardObj.zones.clear()
+                        oldCardObj.groupIds.clear()
+                        cards[cardValue] = oldCardObj
+                    }else{
+                        cards[cardValue] = ClassifiedCard(cardValue)
+                    }
                 }
                 cards[cardValue]?.zones?.add(zone)
             }
         }
-        this.cards = cards
-    }
 
-    private fun updateSets() {
         var newSets = HashMap<String, Pair<Int, Set<CardSet>>>()
         var prevSets = HashMap(this.sets)
-        val _sets = CardSet.findAllSets(this.cards.values.toSet())
+        val _sets = CardSet.findAllSets(cards.values.toSet())
 
         val hashSets = if (setsFinderMode == SetsFinderMode.AllSets) {
             val hashSets = HashSet<Set<CardSet>>()
@@ -1557,73 +1589,22 @@ class CameraFragment : Fragment(),
             newSets[key] = Pair(allocateGroupId(newSets.size), sets)
         }
 
+        // update cards with groups
+        for (pair in newSets.values){
+            val groupId = pair.first
+            for (set in pair.second) {
+                for (card in set) {
+//                    if (card is ClassifiedCard) {
+//                        card.groupIds.add(groupId)
+//                    }
+                    if (cards.containsKey(card.getValue())){
+                        cards[card.getValue()]!!.groupIds.add(groupId)
+                    }
+                }
+            }
+        }
+        this.cards = cards
         this.sets = newSets
-    }
-
-
-    private fun findSetsOldImplementation(): Boolean {
-        var vCardsByName = HashMap<AbstractCard,CardClassifierZone>()
-        var inSet = HashSet<AbstractCard>()
-        // store all cards to set
-        for (vCard in cardClassifierZones) {
-            var cardVal = vCard.getValue()
-            // add only classified cards
-            if (cardVal != null) {
-                val card = SimpleCard(cardVal)
-                inSet.add(card)
-                vCardsByName.put(card, vCard)
-            }
-        }
-
-        val solutions = CardSet.findAllSets(inSet)
-        val solutionsMode1 = solutions.sortedBy {
-            it.toString()
-        }
-
-        // clean groups
-        for (vCard in cardClassifierZones) {
-            vCard.groups.clear()
-        }
-
-        // mode 1
-        if (setsFinderMode == SetsFinderMode.AllSets) {
-            // TODO: how to keep the same group from scan to scan?
-            var groupId = 0
-            for (g in solutionsMode1) {
-                for (c in g) {
-                    //find corresponding vCard
-                    var vCard = vCardsByName.get(c)
-                    assert(vCard != null)
-                    if (vCard != null) {
-                        vCard.groups.add(groupId)
-                    }
-                }
-                // next id
-                groupId++
-            }
-            return true
-        }
-        // mode 2
-        var groupId = 0
-        val solutionsMode2 = CardSet.findAllNonOverlappingSets(solutions).sortedBy {
-            it.toString()
-        }
-        for (ss in solutionsMode2) {
-            // for each solutionset
-            for (s in ss) {
-                for (c in s) {
-                    //find corresponding vCard
-                    var vCard = vCardsByName.get(c)
-                    assert(vCard != null)
-                    if (vCard != null) {
-                        vCard.groups.add(groupId)
-                    }
-                }
-            }
-            // next id
-            groupId++
-        }
-        return true
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

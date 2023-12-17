@@ -83,17 +83,6 @@ import java.util.concurrent.Executors
 import kotlin.math.absoluteValue
 import kotlin.math.pow
 
-enum class SetsFinderMode(val mode: Int) {
-    AllSets(0),
-    NonOverlappingSets(1),
-}
-
-enum class ScanMode {
-    Idle,
-    Camera,
-    StaticPicture;
-}
-
 
 /**
  * 9x9 Bitmap with adjustable order
@@ -146,35 +135,17 @@ class ThumbnailsBitmapHelper(
     }
 }
 
-class SelectedCamera(    val auto: Boolean = true,
-                         val facing: Int = 0,
-                         val cameraId: String = "",
-                         private val stringRepresentation: String = "") {
-    override fun toString(): String {
-        return stringRepresentation
-    }
-}
-
-class SelectedCameraResolution(val parent: SelectedCamera,
-                               val size: Size,
-                               private val stringRepresentation: String = ""
-){
-    override fun toString(): String {
-        if (stringRepresentation == "") {
-            return size.toString()
-        }
-        return stringRepresentation
-    }
-}
-
-data class BoundingBoxTransformation(
-        var deltaX: Float,
-        var deltaY: Float,
-        var scaleX:Float,
-        var scaleY: Float)
-
 class CardClassifierZone(var boundingBox: RectF) {
     private var prevBoundingBox: RectF? = null
+
+    companion object {
+        data class BoundingBoxTransformation(
+                var deltaX: Float,
+                var deltaY: Float,
+                var scaleX:Float,
+                var scaleY: Float)
+    }
+
     fun isWithinBoundingBox(boundingBox: RectF): Boolean {
         if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
                 (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
@@ -277,16 +248,6 @@ class CardClassifierZone(var boundingBox: RectF) {
     }
 }
 
-/**
- * Inherit SimpleCard, but also store list of Classifier Zones that produced that.
- * There can be several - in that case there are duplicates and we need
- * to highlight them
- */
-class ClassifiedCard(v: CardValue): SimpleCard(v) {
-    val zones = LinkedList<CardClassifierZone>()
-    val groupIds = HashSet<Int>()
-}
-
 enum class DelegationMode(val mode: Int) {
     Cpu(0),
     Gpu(1),
@@ -307,6 +268,49 @@ class CameraFragment : Fragment(),
         DetectorHelper.DetectorErrorListener,
         ClassifierHelper.ClassifierErrorListener {
     private val tag = "Scanner"
+    companion object {
+        enum class SetsFinderMode(val mode: Int) {
+            AllSets(0),
+            NonOverlappingSets(1),
+        }
+        enum class ScanMode {
+            Idle,
+            Camera,
+            StaticPicture;
+        }
+
+        /**
+         * Inherit SimpleCard, but also store list of Classifier Zones that produced that.
+         * There can be several - in that case there are duplicates and we need
+         * to highlight them
+         */
+        class ClassifiedCard(v: CardValue): SimpleCard(v) {
+            val zones = LinkedList<CardClassifierZone>()
+            val groupIds = HashSet<Int>()
+        }
+
+        private const val BOUNDING_RECT_TEXT_PADDING = 8
+
+        class SelectedCamera(    val auto: Boolean = true,
+                                 val facing: Int = 0,
+                                 val cameraId: String = "",
+                                 private val stringRepresentation: String = "") {
+            override fun toString(): String {
+                return stringRepresentation
+            }
+        }
+        class SelectedCameraResolution(val parent: SelectedCamera,
+                                       val size: Size,
+                                       private val stringRepresentation: String = ""
+        ){
+            override fun toString(): String {
+                if (stringRepresentation == "") {
+                    return size.toString()
+                }
+                return stringRepresentation
+            }
+        }
+    }
 
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
     private val fragmentCameraBinding
@@ -366,10 +370,6 @@ class CameraFragment : Fragment(),
     private fun freeGroupId(id: Int) {
         assert(!freeGroupIds.contains(id))
         freeGroupIds.add(id)
-    }
-
-    companion object {
-        private const val BOUNDING_RECT_TEXT_PADDING = 8
     }
 
     private fun forceRedrawIfNeeded() {
@@ -1629,7 +1629,7 @@ class CameraFragment : Fragment(),
         }
         // try to identify their new position based on the trajectory of reDetected cards
         // and re-detect them and add to reDetectedCards
-        var t: BoundingBoxTransformation? = null
+        var t: CardClassifierZone.Companion.BoundingBoxTransformation? = null
         for (cardZone in reDetectedCardZones) {
             // TBD: we're handling only move without zooming, rotating and etc. even though it's possible to try those as well later
             val xt = cardZone.getLastBoundingBoxTransformation()

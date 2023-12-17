@@ -372,6 +372,16 @@ class CameraFragment : Fragment(),
         private const val BOUNDING_RECT_TEXT_PADDING = 8
     }
 
+    private fun forceRedrawIfNeeded() {
+        // in case of camera we are permanently re-drawing
+        if (scanMode == ScanMode.StaticPicture) {
+            updateSets()
+            activity?.runOnUiThread {  // Force a redraw
+                fragmentCameraBinding.overlay.invalidate()
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Make sure that all permissions are still present, since the
@@ -983,7 +993,7 @@ class CameraFragment : Fragment(),
             }
         })
 
-        // override dialog
+        // create/update dialog
         val overrideDialog = Dialog(requireContext())
         fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { _, event ->
             // ignore touches in Idle mode
@@ -1058,15 +1068,6 @@ class CameraFragment : Fragment(),
                     plusShape.setImageBitmap(thumbnailsBitmapHelper!!.getSingleThumbBitmap(thumbnailsBitmapHelper!!.getThumbIndex(plusShapeCard)))
                     plusShape.setOnClickListener {
                         setView(plusShapeCard)
-                    }
-                }
-                fun forceRedrawIfNeeded() {
-                    // in case of camera we are permanently re-drawing
-                    if (scanMode == ScanMode.StaticPicture) {
-                        updateSets()
-                        activity?.runOnUiThread {  // Force a redraw
-                            fragmentCameraBinding.overlay.invalidate()
-                        }
                     }
                 }
 
@@ -1194,6 +1195,9 @@ class CameraFragment : Fragment(),
         detectorHelper.clearDetector()
         classifierHelper.clearClassifier()
 
+        if (scanMode == ScanMode.StaticPicture) {
+            updateSets()
+        }
         fragmentCameraBinding.overlay.invalidate()
     }
 

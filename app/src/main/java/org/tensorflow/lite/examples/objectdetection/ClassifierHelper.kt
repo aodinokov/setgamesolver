@@ -78,9 +78,9 @@ class ClassifierHelper(
 
         val modelName =
                 when (i) {
-                    COUNT_CLASSIFIER -> "setgame-classify-count.tflite"
+                    NUMBER_CLASSIFIER -> "setgame-classify-number.tflite"
                     COLOR_CLASSIFIER -> "setgame-classify-color.tflite"
-                    FILL_CLASSIFIER -> "setgame-classify-fill.tflite"
+                    SHADING_CLASSIFIER -> "setgame-classify-shading.tflite"
                     SHAPE_CLASSIFIER -> "setgame-classify-shape.tflite"
                     else -> "setgame-classify.tflite"
                 }
@@ -159,7 +159,7 @@ class ClassifierHelper(
 
         var h = 0
         var s = 0.0
-        // v == mx
+        // note that v == mx in hcv
 
         val mx = max(r,max(g,b))
         val mn = min(r, min(g,b))
@@ -368,7 +368,7 @@ class ClassifierHelper(
 
         // if shape and fill are classified with good probability - good time to do adhoc
         if (    r[SHAPE_CLASSIFIER].size > 0 &&
-                r[FILL_CLASSIFIER].size > 0) {
+                r[SHADING_CLASSIFIER].size > 0) {
             r[COLOR_CLASSIFIER] = adhocCardColorGuess(buffer, pixels)
 //            //dbg
 //            buffer.setPixels(pixels, 0,width,0,0,
@@ -384,9 +384,9 @@ class ClassifierHelper(
     }
 
     companion object {
-        const val COUNT_CLASSIFIER = 0
+        const val NUMBER_CLASSIFIER = 0
         const val COLOR_CLASSIFIER = 1
-        const val FILL_CLASSIFIER = 2
+        const val SHADING_CLASSIFIER = 2
         const val SHAPE_CLASSIFIER = 3
     }
 }

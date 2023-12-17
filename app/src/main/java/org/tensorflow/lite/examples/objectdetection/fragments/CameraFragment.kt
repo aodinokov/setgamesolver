@@ -321,6 +321,7 @@ class CameraFragment : Fragment(),
 
     private lateinit var bitmapBuffer: Bitmap
     /** for static picture mode */
+    private var bitmapStaticBufferOriginalImageRotation: Int = 0
     private var bitmapStaticBufferOriginal: Bitmap? = null
     private var bitmapStaticBufferRotated: Bitmap? = null
     /** Blocking camera operations are performed using this executor */
@@ -1069,6 +1070,10 @@ class CameraFragment : Fragment(),
                     }
                 }
 
+                // to calculate avg sizes
+                var width = 0.0f
+                var height = 0.0f
+
                 // find if we pressed within any detected card? if so - propose to override
                 for (cardClassifierZone in this.cardClassifierZones) {
 
@@ -1076,6 +1081,9 @@ class CameraFragment : Fragment(),
                     val bottom = cardClassifierZone.boundingBox.bottom * scaleFactor
                     val left = cardClassifierZone.boundingBox.left * scaleFactor
                     val right = cardClassifierZone.boundingBox.right * scaleFactor
+
+                    width += right - left
+                    height += bottom - top
 
                     if (event.x > left && event.x < right &&
                             event.y > top && event.y < bottom) {
@@ -1104,8 +1112,53 @@ class CameraFragment : Fragment(),
                             overrideDialog.dismiss()
                             forceRedrawIfNeeded()
                         }
+
+                        updateText.text = getString(R.string.label_update_btn)
+                        deleteText.visibility = View.VISIBLE
                         overrideDialog.show()
-                        break
+                        return@OnTouchListener true
+                    }
+                }
+                // wasn't able to find anything - but in Freeze mode we can create
+                if (scanMode == ScanMode.StaticPicture && bitmapStaticBufferOriginal != null) {
+                    if (this.cardClassifierZones.size > 0) {
+                        width /= cardClassifierZones.size.toFloat()
+                        height /= cardClassifierZones.size.toFloat()
+                    }
+                    // TODO: filter and use default if it's not ok
+
+                    // try to create new Zone
+                    val cardZone = CardClassifierZone(RectF(
+                            event.x - width/2, event.y - height/2,
+                            event.x + width/2, event.y + height/2))
+
+                    val res = classifierHelper.classify(
+                            bitmapStaticBufferOriginal!!, bitmapStaticBufferOriginalImageRotation,
+                            cardZone.boundingBox)
+                    if (res != null) {
+                        cardZone.updateCategories(res)
+                        val cardValue = cardZone.getValue() ?: CardValue(
+                                CardNumber.ONE, CardColor.GREEN,
+                                CardShading.EMPTY, CardShape.DIAMOND)
+                        cardZone.editIsProgress = true
+                        setView(cardValue)
+
+                        cancelText.setOnClickListener {
+                            cardZone.editIsProgress = false
+                            overrideDialog.dismiss()
+                        }
+                        updateText.setOnClickListener {
+                            cardZone.overriddenValue = currentDlgCardValue
+                            cardZone.editIsProgress = false
+                            // finally add it!!!
+                            this.cardClassifierZones.add(cardZone)
+                            overrideDialog.dismiss()
+                            forceRedrawIfNeeded()
+                        }
+
+                        updateText.text = getString(R.string.label_create_btn)
+                        deleteText.visibility = View.GONE
+                        overrideDialog.show()
                     }
                 }
             }
@@ -1442,6 +1495,8 @@ class CameraFragment : Fragment(),
         if (scanMode == ScanMode.StaticPicture) {
             if (bitmapStaticBufferOriginal == null) {
                 bitmapStaticBufferOriginal = Bitmap.createBitmap(bitmapBuffer)
+                bitmapStaticBufferOriginalImageRotation = imageRotation
+
                 if (bitmapStaticBufferRotated != null) {
                     bitmapStaticBufferRotated!!.recycle()
                     bitmapStaticBufferRotated = null
@@ -1521,6 +1576,7 @@ class CameraFragment : Fragment(),
         }
 
         outer@for (det in this.rawDetectionResults) {
+            // TODO: filter by size and skip if doesn't match
             for (card in previousCardZones) {
                 if (card.isWithinBoundingBox(det.boundingBox)) {
                     // move to the re-detected list

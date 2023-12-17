@@ -68,6 +68,7 @@
     <string name="label_resolution_recommended">Recommended</string>
 
     <string name="label_card_value">Card value</string>
+    <string name="label_create_btn">Create</string>
     <string name="label_update_btn">Update</string>
     <string name="label_delete_btn">Delete</string>
     <string name="label_ok_btn">Ok</string>

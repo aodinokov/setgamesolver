@@ -980,7 +980,15 @@ class CameraFragment : Fragment(),
                 }
 
                 if (scanMode == ScanMode.StaticPicture && bitmapStaticBufferRotated != null) {
-                    canvas.drawBitmap(bitmapStaticBufferRotated!!, 0.0f, 0.0f, textBackgroundPaint)
+                    // scale if needed to match sized of view_finder or overlay
+                    // because without that it doesn't show the image properly in horizontal view
+                    //canvas.drawBitmap(bitmapStaticBufferRotated!!, 0.0f, 0.0f, textBackgroundPaint)
+                    val scale = max(fragmentCameraBinding.overlay.width.toFloat()/bitmapStaticBufferRotated!!.width.toFloat(),
+                            fragmentCameraBinding.overlay.height.toFloat()/bitmapStaticBufferRotated!!.height.toFloat())
+                    bounds.set(0,0, bitmapStaticBufferRotated!!.width, bitmapStaticBufferRotated!!.height)
+                    boundsF.set(0f, 0f,
+                            bitmapStaticBufferRotated!!.width.toFloat()*scale, bitmapStaticBufferRotated!!.height.toFloat()*scale)
+                    canvas.drawBitmap(bitmapStaticBufferRotated!!, bounds, boundsF, textBackgroundPaint)
                 }
 
                 // show zones, cardValues, duplicates and sets

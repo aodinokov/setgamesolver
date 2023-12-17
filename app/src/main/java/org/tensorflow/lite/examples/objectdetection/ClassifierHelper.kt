@@ -199,6 +199,7 @@ class ClassifierHelper(
 
         if (buffer.height > buffer.width) {
             // go vertically
+            assert(buffer.width.toInt()>=7)
             for (x in buffer.width.toInt()/2 -3 until buffer.width.toInt()/2 + 3)
                 for (y in 1*buffer.height.toInt()/4 until 3*buffer.height.toInt()/4) {
                     tc +=1
@@ -217,6 +218,7 @@ class ClassifierHelper(
                 }
         }else {
             // go horizontally
+            assert(buffer.height.toInt()>=7)
             for (y in buffer.height.toInt()/2 -3 until buffer.height.toInt()/2 + 3)
                 for (x in 1*buffer.width.toInt()/4 until 3*buffer.width.toInt()/4) {
                     tc +=1

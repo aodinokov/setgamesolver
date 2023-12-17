@@ -34,6 +34,8 @@
     <string name="label_startstop_btn_stop">Stop</string>
 
     <string name="label_resolution_btn">Resolution</string>
+    <string name="label_freeze_btn">Freeze</string>
+    <string name="label_unfreeze_btn">Unfreeze</string>
 
     <string name="label_modes">Mode</string>
     <string name="label_det_confidence_threshold">Det threshold</string>

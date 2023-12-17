@@ -87,6 +87,13 @@ enum class SetsFinderMode(val mode: Int) {
     NonOverlappingSets(1),
 }
 
+enum class ScanMode {
+    Idle,
+    Camera,
+    StaticPicture;
+}
+
+
 /**
  * 9x9 Bitmap with adjustable order
  */
@@ -298,11 +305,9 @@ enum class DelegationMode(val mode: Int) {
 class CameraFragment : Fragment(),
         DetectorHelper.DetectorErrorListener,
         ClassifierHelper.ClassifierErrorListener {
-
-    private val tag = "ObjectDetection"
+    private val tag = "Scanner"
 
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
-
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
 
@@ -324,7 +329,7 @@ class CameraFragment : Fragment(),
 
     /** modes */
     private var setsFinderMode = SetsFinderMode.AllSets
-    private var scanIsInProgress: Boolean = false
+    private var scanMode = ScanMode.Idle
 
     /** overlay data to show*/
     private var scaleFactor: Float = 1f
@@ -343,8 +348,7 @@ class CameraFragment : Fragment(),
     private var sets = HashMap<String, Pair<Int,Set<CardSet>>>()
     /* set of deallocated group Ids
        if group is empty - the next allocated groupID will be sets.size() (nextId)
-       because it contains all unique allocated groups
-    */
+       because it contains all unique allocated groups */
     private val freeGroupIds = HashSet<Int>()
     private fun allocateGroupId(nextId: Int): Int {
         if (freeGroupIds.isEmpty())
@@ -651,7 +655,11 @@ class CameraFragment : Fragment(),
 
         fragmentCameraBinding.bottomSheetLayout.startstopButton.setOnClickListener {
             /* update button */
-            scanIsInProgress = !scanIsInProgress
+            scanMode = if (scanMode == ScanMode.Idle) {
+                ScanMode.Camera
+            } else {
+                ScanMode.Idle
+            }
 
             /* reset all data */
             rawDetectionResults = LinkedList<Detection>()
@@ -662,84 +670,101 @@ class CameraFragment : Fragment(),
 
         val resolutionDialog = Dialog(requireContext())
         fragmentCameraBinding.bottomSheetLayout.resolutionButton.setOnClickListener {
-            resolutionDialog.setContentView(R.layout.resolution_dialog)
-            resolutionDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            resolutionDialog.setCancelable(false)
+            when (scanMode) {
+                ScanMode.Idle -> {
+                    resolutionDialog.setContentView(R.layout.resolution_dialog)
+                    resolutionDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    resolutionDialog.setCancelable(false)
 
-            val spinnerCamera = resolutionDialog.findViewById<Spinner>(R.id.spinner_camera)
-            val spinnerResolution = resolutionDialog.findViewById<Spinner>(R.id.spinner_resolution)
-            val okayText = resolutionDialog.findViewById<TextView>(R.id.okay_text)
-            val cancelText = resolutionDialog.findViewById<TextView>(R.id.cancel_text)
+                    val spinnerCamera = resolutionDialog.findViewById<Spinner>(R.id.spinner_camera)
+                    val spinnerResolution = resolutionDialog.findViewById<Spinner>(R.id.spinner_resolution)
+                    val okayText = resolutionDialog.findViewById<TextView>(R.id.okay_text)
+                    val cancelText = resolutionDialog.findViewById<TextView>(R.id.cancel_text)
 
-            okayText.setOnClickListener {
-                //store preferences
-                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-                val c = preferences.getString("camera", "")
-                val r = preferences.getString("resolution", "")
+                    okayText.setOnClickListener {
+                        //store preferences
+                        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+                        val c = preferences.getString("camera", "")
+                        val r = preferences.getString("resolution", "")
 
-                var configChanged = false
-                if (c != spinnerCamera.adapter.getItem(spinnerCamera.selectedItemId.toInt()).toString() ||
-                        r != spinnerResolution.adapter.getItem(spinnerResolution.selectedItemId.toInt()).toString()) {
-                    configChanged = true
-                    val editor = preferences.edit()
-                    editor.putString("camera", spinnerCamera.adapter.getItem(spinnerCamera.selectedItemId.toInt()).toString())
-                    editor.putString("resolution", spinnerResolution.adapter.getItem(spinnerResolution.selectedItemId.toInt()).toString())
-                    editor.apply()
-                }
+                        var configChanged = false
+                        if (c != spinnerCamera.adapter.getItem(spinnerCamera.selectedItemId.toInt()).toString() ||
+                                r != spinnerResolution.adapter.getItem(spinnerResolution.selectedItemId.toInt()).toString()) {
+                            configChanged = true
+                            val editor = preferences.edit()
+                            editor.putString("camera", spinnerCamera.adapter.getItem(spinnerCamera.selectedItemId.toInt()).toString())
+                            editor.putString("resolution", spinnerResolution.adapter.getItem(spinnerResolution.selectedItemId.toInt()).toString())
+                            editor.apply()
+                        }
 
-                resolutionDialog.dismiss()
+                        resolutionDialog.dismiss()
 
-                if (configChanged) {
-                    Toast.makeText(requireContext(), "restarting to apply changes", Toast.LENGTH_SHORT).show()
-                    // restart app to apply the new settings
-                    doRestart(requireContext())
-                }
-            }
-
-            cancelText.setOnClickListener {
-                resolutionDialog.dismiss()
-            }
-
-            val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val camerasList = buildCamerasList(cm)
-            val camerasAdapter = ArrayAdapter(requireContext(), R.layout.spinner_item,  camerasList)
-            spinnerCamera.adapter = camerasAdapter
-            spinnerCamera.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
-                    val upperAdapter = p0!!.adapter
-                    val camera = upperAdapter.getItem(p2)
-                    // update resolution list if resolution has a different selected camera?
-                    if (!spinnerResolution.adapter.isEmpty && (spinnerResolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
-                        val adapter = ArrayAdapter(requireContext(), R.layout.spinner_item, buildCameraResolutionList(cm, camera as SelectedCamera))
-                        spinnerResolution.adapter = adapter
+                        if (configChanged) {
+                            Toast.makeText(requireContext(), "restarting to apply changes", Toast.LENGTH_SHORT).show()
+                            // restart app to apply the new settings
+                            doRestart(requireContext())
+                        }
                     }
+
+                    cancelText.setOnClickListener {
+                        resolutionDialog.dismiss()
+                    }
+
+                    val cm = context?.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                    val camerasList = buildCamerasList(cm)
+                    val camerasAdapter = ArrayAdapter(requireContext(), R.layout.spinner_item, camerasList)
+                    spinnerCamera.adapter = camerasAdapter
+                    spinnerCamera.onItemSelectedListener =
+                            object : AdapterView.OnItemSelectedListener {
+                                override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
+                                    val upperAdapter = p0!!.adapter
+                                    val camera = upperAdapter.getItem(p2)
+                                    // update resolution list if resolution has a different selected camera?
+                                    if (!spinnerResolution.adapter.isEmpty && (spinnerResolution.adapter.getItem(0) as SelectedCameraResolution).parent != camera) {
+                                        val adapter = ArrayAdapter(requireContext(), R.layout.spinner_item, buildCameraResolutionList(cm, camera as SelectedCamera))
+                                        spinnerResolution.adapter = adapter
+                                    }
+                                }
+
+                                override fun onNothingSelected(p0: AdapterView<*>?) {
+                                    /* no op */
+                                }
+                            }
+                    if (camerasList.isNotEmpty()) {
+                        // read and set dialog
+                        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+
+                        val c = preferences.getString("camera", camerasList[0].toString())
+                        // find the current id
+                        var ci = camerasList.indexOfFirst { it.toString() == c }
+                        if (ci < 0) {
+                            ci = 0
+                        }
+                        spinnerCamera.setSelection(ci, false)
+
+                        val resolutionList = buildCameraResolutionList(cm, camerasList[ci])
+                        val resolutionAdapter = ArrayAdapter(requireContext(), R.layout.spinner_item, resolutionList)
+                        spinnerResolution.adapter = resolutionAdapter
+
+                        val r = preferences.getString("resolution", resolutionList[0].toString())
+                        // find the resolution id
+                        var ri = resolutionList.indexOfFirst { it.toString() == r }
+                        if (ri < 0) {
+                            ri = 0
+                        }
+                        spinnerResolution.setSelection(ri, false)
+                    }
+                    resolutionDialog.show()
                 }
-                override fun onNothingSelected(p0: AdapterView<*>?) {
-                    /* no op */
+                ScanMode.Camera ->{
+                    scanMode = ScanMode.StaticPicture
+                    updateTextControlsUi()
+                }
+                ScanMode.StaticPicture ->{
+                    scanMode = ScanMode.Camera
+                    updateTextControlsUi()
                 }
             }
-            if (camerasList.isNotEmpty()) {
-                // read and set dialog
-                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-
-                val c = preferences.getString("camera", camerasList[0].toString())
-                // find the current id
-                var ci = camerasList.indexOfFirst { it.toString() == c }
-                if (ci < 0){ ci = 0}
-                spinnerCamera.setSelection(ci, false)
-
-                val resolutionList = buildCameraResolutionList(cm, camerasList[ci])
-                val resolutionAdapter = ArrayAdapter(requireContext(), R.layout.spinner_item, resolutionList)
-                spinnerResolution.adapter = resolutionAdapter
-
-                val r = preferences.getString("resolution", resolutionList[0].toString())
-                // find the resolution id
-                var ri = resolutionList.indexOfFirst { it.toString() == r }
-                if (ri < 0){ ri = 0}
-                spinnerResolution.setSelection(ri, false)
-            }
-            resolutionDialog.show()
         }
 
         // overlay draw procedure
@@ -767,7 +792,6 @@ class CameraFragment : Fragment(),
                 boxPaint.style = Paint.Style.STROKE
 
                 duplicatePaint.color = ContextCompat.getColor(requireContext(), R.color.duplicate_box_color)
-                //duplicatePaint.strokeWidth = 8F
                 duplicatePaint.style = Paint.Style.FILL
                 duplicatePaint.alpha = 63
 
@@ -871,7 +895,7 @@ class CameraFragment : Fragment(),
             }
 
             override fun onDraw(canvas: Canvas){
-                if (!scanIsInProgress)
+                if (scanMode == ScanMode.Idle)
                     return
 
                 // Generate fps text
@@ -951,10 +975,13 @@ class CameraFragment : Fragment(),
         // override dialog
         val overrideDialog = Dialog(requireContext())
         fragmentCameraBinding.overlay.setOnTouchListener(View.OnTouchListener { _, event ->
+            // ignore touches in Idle mode
+            if (scanMode == ScanMode.Idle)
+                return@OnTouchListener true
+
             assert(thumbnailsBitmapHelper != null)
             if (event != null &&
-                    event.action == MotionEvent.ACTION_DOWN &&
-                    this.scanIsInProgress) {
+                    event.action == MotionEvent.ACTION_DOWN) {
                 overrideDialog.setContentView(R.layout.card_override_dialog)
                 overrideDialog.window!!.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 overrideDialog.setCancelable(false)
@@ -1077,10 +1104,16 @@ class CameraFragment : Fragment(),
         fragmentCameraBinding.bottomSheetLayout.threadsValue.text =
             detectorHelper.numThreads.toString()
 
-        if (scanIsInProgress) {
-            fragmentCameraBinding.bottomSheetLayout.startstopButton.text = getString(R.string.label_startstop_btn_stop)
-        } else {
+        if (scanMode == ScanMode.Idle) {
             fragmentCameraBinding.bottomSheetLayout.startstopButton.text = getString(R.string.label_startstop_btn_start)
+            fragmentCameraBinding.bottomSheetLayout.resolutionButton.text = getString(R.string.label_resolution_btn)
+        } else {
+            fragmentCameraBinding.bottomSheetLayout.startstopButton.text = getString(R.string.label_startstop_btn_stop)
+            if (scanMode == ScanMode.Camera) {
+                fragmentCameraBinding.bottomSheetLayout.resolutionButton.text = getString(R.string.label_freeze_btn)
+            }else {
+                fragmentCameraBinding.bottomSheetLayout.resolutionButton.text = getString(R.string.label_unfreeze_btn)
+            }
         }
 
         // Needs to be cleared instead of reinitialized because the GPU
@@ -1385,7 +1418,9 @@ class CameraFragment : Fragment(),
         // NOTE: we must do it even if we don't detect anything
         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
 
-        if(!this.scanIsInProgress)
+        //if (scanMode == ScanMode.StaticPicture && no picture? copy bitmapBuffer)
+
+        if(scanMode != ScanMode.Camera)
             return
 
         val imageRotation = image.imageInfo.rotationDegrees
@@ -1592,9 +1627,6 @@ class CameraFragment : Fragment(),
             val groupId = pair.first
             for (set in pair.second) {
                 for (card in set) {
-//                    if (card is ClassifiedCard) {
-//                        card.groupIds.add(groupId)
-//                    }
                     if (cards.containsKey(card.getValue())){
                         cards[card.getValue()]!!.groupIds.add(groupId)
                     }

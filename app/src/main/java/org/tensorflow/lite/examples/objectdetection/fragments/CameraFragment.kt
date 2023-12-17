@@ -83,7 +83,21 @@ import java.util.concurrent.Executors
 import kotlin.math.absoluteValue
 import kotlin.math.pow
 
-
+enum class DelegationMode(val mode: Int) {
+    Cpu(0),
+    Gpu(1),
+    Nnapi(2),
+    ;
+    companion object {
+        fun fromInt(value: Int): DelegationMode? {
+            return try {
+                DelegationMode.values().first { it.mode == value }
+            } catch (ex: NoSuchElementException) {
+                null
+            }
+        }
+    }
+}
 /**
  * 9x9 Bitmap with adjustable order
  */
@@ -247,23 +261,6 @@ class CardClassifierZone(var boundingBox: RectF) {
         return SystemClock.uptimeMillis() - detectedTime < 1500 // can be in cycles, not in real time. what is better?
     }
 }
-
-enum class DelegationMode(val mode: Int) {
-    Cpu(0),
-    Gpu(1),
-    Nnapi(2),
-    ;
-    companion object {
-        fun fromInt(value: Int): DelegationMode? {
-            return try {
-                DelegationMode.values().first { it.mode == value }
-            } catch (ex: NoSuchElementException) {
-                null
-            }
-        }
-    }
-}
-
 class CameraFragment : Fragment(),
         DetectorHelper.DetectorErrorListener,
         ClassifierHelper.ClassifierErrorListener {
@@ -278,7 +275,6 @@ class CameraFragment : Fragment(),
             Camera,
             StaticPicture;
         }
-
         /**
          * Inherit SimpleCard, but also store list of Classifier Zones that produced that.
          * There can be several - in that case there are duplicates and we need
@@ -679,6 +675,7 @@ class CameraFragment : Fragment(),
             /* reset all data */
             rawDetectionResults = LinkedList<Detection>()
             cardClassifierZones.clear()
+            updateSets()
 
             updateTextControlsUi()
         }

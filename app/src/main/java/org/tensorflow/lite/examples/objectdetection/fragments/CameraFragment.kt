@@ -336,8 +336,11 @@ class CameraFragment : Fragment(),
     private var setsFinderMode = SetsFinderMode.AllSets
     private var scanMode = ScanMode.Idle
 
-    /** overlay data to show*/
+    /** last detection results */
+    private var imageHeight: Int = 0
+    private var imageWidth: Int = 0
     private var scaleFactor: Float = 1f
+    /** overlay data to show*/
     private var inferenceTime: Long = 0
 
     /* raw data after detection */
@@ -371,11 +374,22 @@ class CameraFragment : Fragment(),
     private fun forceRedrawIfNeeded() {
         // in case of camera we are permanently re-drawing
         if (scanMode == ScanMode.StaticPicture) {
+            // clean up
+            handleMarkedZones()
+            // recalculate sets
             updateSets()
             activity?.runOnUiThread {  // Force a redraw
                 fragmentCameraBinding.overlay.invalidate()
             }
         }
+    }
+
+    private fun minMaxDetectionRectF(): RectF {
+        if (imageWidth == 0 || imageHeight == 0) {
+            // some very arbitrary limits
+            return RectF(20f, 20f, 100f, 100f)
+        }
+        return RectF(imageWidth/12f, imageHeight/12f, imageWidth/3f, imageHeight/3f)
     }
 
     override fun onResume() {
@@ -1118,17 +1132,27 @@ class CameraFragment : Fragment(),
                     }
                 }
                 // wasn't able to find anything - but in Freeze mode we can create
-                if (scanMode == ScanMode.StaticPicture && bitmapStaticBufferOriginal != null) {
+                if (scanMode == ScanMode.StaticPicture &&
+                        scaleFactor != 0.0f &&
+                        bitmapStaticBufferOriginal != null) {
                     if (this.cardClassifierZones.size > 0) {
+                        // get avg
                         width /= cardClassifierZones.size.toFloat()
                         height /= cardClassifierZones.size.toFloat()
                     }
-                    // TODO: filter and use default if it's not ok
+
+                    // filter and use default if it's not ok
+                    val minMax = minMaxDetectionRectF()
+                    if (width < minMax.left || width > minMax.right ||
+                            height < minMax.top || height > minMax.bottom) {
+                        width = minMax.left * 2
+                        height = minMax.top * 2
+                    }
 
                     // try to create new Zone
                     val cardZone = CardClassifierZone(RectF(
-                            event.x - width/2, event.y - height/2,
-                            event.x + width/2, event.y + height/2))
+                            event.x/scaleFactor - width/2, event.y/scaleFactor - height/2,
+                            event.x/scaleFactor + width/2, event.y/scaleFactor + height/2))
 
                     val res = classifierHelper.classify(
                             bitmapStaticBufferOriginal!!, bitmapStaticBufferOriginalImageRotation,
@@ -1535,8 +1559,8 @@ class CameraFragment : Fragment(),
         // to scale and place bounding boxes properly through OverlayView
         this.rawDetectionResults = detectedTriple.first ?: LinkedList<Detection>()
 
-        val imageHeight: Int = detectedTriple.second
-        val imageWidth: Int = detectedTriple.third
+        this.imageHeight = detectedTriple.second
+        this.imageWidth = detectedTriple.third
         this.scaleFactor = max(
                 fragmentCameraBinding.overlay.width * 1f / imageWidth,
                 fragmentCameraBinding.overlay.height * 1f / imageHeight)
@@ -1556,28 +1580,40 @@ class CameraFragment : Fragment(),
         }
     }
 
-    private fun updateWithNewDetections(
-            image: Bitmap,
-            imageRotation: Int) {
-        val newDet = LinkedList<Detection>()
-
-        val previousCardZones = LinkedList(this.cardClassifierZones)
-        val newCardZones = LinkedList<CardClassifierZone>()
-        val reDetectedCardZones = LinkedList<CardClassifierZone>()
-
+    private fun handleMarkedZones() {
         // clean up
         outer@while (true){
-            for (card in previousCardZones) {
+            for (card in cardClassifierZones) {
                 if (card.deleteNextCycle) {
-                    previousCardZones.remove(card)
+                    cardClassifierZones.remove(card)
                     continue@outer
                 }
             }
             break
         }
+    }
 
+    private fun updateWithNewDetections(
+            image: Bitmap,
+            imageRotation: Int) {
+        val newDet = LinkedList<Detection>()
+
+        // clean up
+        handleMarkedZones()
+
+        val previousCardZones = LinkedList(this.cardClassifierZones)
+        val newCardZones = LinkedList<CardClassifierZone>()
+        val reDetectedCardZones = LinkedList<CardClassifierZone>()
+
+        val minMax = minMaxDetectionRectF()
         outer@for (det in this.rawDetectionResults) {
-            // TODO: filter by size and skip if doesn't match
+            // filter by size and skip if doesn't match
+            if (det.boundingBox.width() < minMax.left ||
+                    det.boundingBox.width() > minMax.right ||
+                    det.boundingBox.height() < minMax.top ||
+                    det.boundingBox.height() > minMax.bottom)
+                continue
+
             for (card in previousCardZones) {
                 if (card.isWithinBoundingBox(det.boundingBox)) {
                     // move to the re-detected list

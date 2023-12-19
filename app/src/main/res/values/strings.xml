@@ -71,7 +71,7 @@
     <string name="label_create_btn">Create</string>
     <string name="label_update_btn">Update</string>
     <string name="label_delete_btn">Delete</string>
-    <string name="label_ok_btn">Ok</string>
+    <string name="label_ok_btn">OK</string>
     <string name="label_cancel_btn">Cancel</string>
 
     <!-- don't change the order -->

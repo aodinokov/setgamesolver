@@ -339,7 +339,10 @@ class CameraFragment : Fragment(),
     /** last detection results */
     private var imageHeight: Int = 0
     private var imageWidth: Int = 0
-    private var scaleFactor: Float = 1f
+    private val scaleFactor
+        get() = if (imageHeight == 0 || imageWidth == 0) 1f else  max(
+                fragmentCameraBinding.overlay.width * 1f / imageWidth,
+                fragmentCameraBinding.overlay.height * 1f / imageHeight)
     /** overlay data to show*/
     private var inferenceTime: Long = 0
 
@@ -1569,9 +1572,6 @@ class CameraFragment : Fragment(),
 
         this.imageHeight = detectedTriple.second
         this.imageWidth = detectedTriple.third
-        this.scaleFactor = max(
-                fragmentCameraBinding.overlay.width * 1f / imageWidth,
-                fragmentCameraBinding.overlay.height * 1f / imageHeight)
 
         if (detectorHelper.currentModel == DetectorHelper.MODEL_SETGAME) {
             // update classification Zones list with new detection info

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.tensorflow.lite.examples.objectdetection
+package com.github.aodinokov.setgameresolver
 
 import android.content.Context
 import android.graphics.Canvas

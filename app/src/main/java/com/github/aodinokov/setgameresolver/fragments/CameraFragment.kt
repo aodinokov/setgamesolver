@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tensorflow.lite.examples.objectdetection.fragments
+package com.github.aodinokov.setgameresolver.fragments
 
 import android.annotation.SuppressLint
 import android.app.AlarmManager
@@ -62,18 +62,18 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import com.google.gson.Gson
-import org.tensorflow.lite.examples.objectdetection.CardColor
-import org.tensorflow.lite.examples.objectdetection.CardNumber
-import org.tensorflow.lite.examples.objectdetection.CardSet
-import org.tensorflow.lite.examples.objectdetection.CardShading
-import org.tensorflow.lite.examples.objectdetection.CardShape
-import org.tensorflow.lite.examples.objectdetection.CardValue
-import org.tensorflow.lite.examples.objectdetection.ClassifierHelper
-import org.tensorflow.lite.examples.objectdetection.DetectorHelper
-import org.tensorflow.lite.examples.objectdetection.OverlayView
-import org.tensorflow.lite.examples.objectdetection.R
-import org.tensorflow.lite.examples.objectdetection.SimpleCard
-import org.tensorflow.lite.examples.objectdetection.databinding.FragmentCameraBinding
+import com.github.aodinokov.setgameresolver.CardColor
+import com.github.aodinokov.setgameresolver.CardNumber
+import com.github.aodinokov.setgameresolver.CardSet
+import com.github.aodinokov.setgameresolver.CardShading
+import com.github.aodinokov.setgameresolver.CardShape
+import com.github.aodinokov.setgameresolver.CardValue
+import com.github.aodinokov.setgameresolver.ClassifierHelper
+import com.github.aodinokov.setgameresolver.DetectorHelper
+import com.github.aodinokov.setgameresolver.OverlayView
+import com.github.aodinokov.setgameresolver.R
+import com.github.aodinokov.setgameresolver.SimpleCard
+import com.github.aodinokov.setgameresolver.databinding.FragmentCameraBinding
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.vision.detector.Detection
 import java.lang.Float.max

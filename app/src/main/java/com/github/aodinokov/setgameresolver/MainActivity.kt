@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package org.tensorflow.lite.examples.objectdetection
+package com.github.aodinokov.setgameresolver
 
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import org.tensorflow.lite.examples.objectdetection.databinding.ActivityMainBinding
+import com.github.aodinokov.setgameresolver.databinding.ActivityMainBinding
 
 /**
  * Main entry point into our app. This app follows the single-activity pattern, and all

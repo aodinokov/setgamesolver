@@ -24,7 +24,7 @@ android {
     compileSdkVersion 33
     defaultConfig {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        applicationId "org.tensorflow.lite.examples.objectdetection"
+        applicationId "com.github.aodinokov.setgameresolver"
         minSdkVersion 21
         targetSdkVersion 33
         versionCode 1
@@ -60,7 +60,7 @@ android {
     testOptions {
         unitTests.includeAndroidResources = true
     }
-    namespace 'org.tensorflow.lite.examples.objectdetection'
+    namespace 'com.github.aodinokov.setgameresolver'
 
 }
 

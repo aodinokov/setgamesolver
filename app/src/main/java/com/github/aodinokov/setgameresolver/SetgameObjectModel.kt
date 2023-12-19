@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.tensorflow.lite.examples.objectdetection
+package com.github.aodinokov.setgameresolver
 
 enum class CardNumber(val code: Int) {
     ONE(1),

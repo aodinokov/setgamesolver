@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.tensorflow.lite.examples.objectdetection
+package com.github.aodinokov.setgameresolver
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
@@ -51,19 +51,19 @@ class TFObjectDetectionTest {
     @Throws(Exception::class)
     fun detectionResultsShouldNotChange() {
         val setgameDetectorHelper =
-            SetgameDetectorHelper(
+                DetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
-                scanEnabled = true,
-                currentModel = SetgameDetectorHelper.MODEL_MOBILENETV1,
-                objectDetectorListener =
-                    object : SetgameDetectorHelper.DetectorListener {
-                        override fun onError(error: String) {
+                currentModel = DetectorHelper.MODEL_MOBILENETV1,
+                detectorErrorListener =
+                    object : DetectorHelper.DetectorErrorListener {
+                        override fun onDetectorError(error: String) {
                             // no op
                         }
-
-                        override fun onResults(
-                            results: MutableList<Detected>?,
-                            inferenceTime: Long,
+                    },
+                detectorResultsListener =
+                object : DetectorHelper.DetectorResultsListener {
+                        override fun onDetectorResults(
+                            results: List<Detection>?,
                             imageHeight: Int,
                             imageWidth: Int
                         ) {
@@ -104,18 +104,21 @@ class TFObjectDetectionTest {
     @Throws(Exception::class)
     fun detectedImageIsScaledWithinModelDimens() {
         val setgameDetectorHelper =
-            SetgameDetectorHelper(
+                DetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
-                scanEnabled = true,
-                currentModel = SetgameDetectorHelper.MODEL_MOBILENETV1,
-                objectDetectorListener =
-                    object : SetgameDetectorHelper.DetectorListener {
-                        override fun onError(error: String) {}
-                        override fun onResults(
-                            results: MutableList<Detected>?,
-                            inferenceTime: Long,
-                            imageHeight: Int,
-                            imageWidth: Int
+                currentModel = DetectorHelper.MODEL_MOBILENETV1,
+                    detectorErrorListener =
+                    object : DetectorHelper.DetectorErrorListener {
+                        override fun onDetectorError(error: String) {
+                            // no op
+                        }
+                    },
+                    detectorResultsListener =
+                    object : DetectorHelper.DetectorResultsListener {
+                        override fun onDetectorResults(
+                                results: List<Detection>?,
+                                imageHeight: Int,
+                                imageWidth: Int
                         ) {
                             assertNotNull(results)
                             for (result in results!!) {
@@ -138,29 +141,24 @@ class TFObjectDetectionTest {
     @Throws(Exception::class)
     fun someResultsForSetgame_test1() {
         val setgameDetectorHelper =
-                SetgameDetectorHelper(
+                DetectorHelper(
                         context = InstrumentationRegistry.getInstrumentation().context,
-                        scanEnabled = true,
-                        currentModel = SetgameDetectorHelper.MODEL_SETGAME,
-                        objectDetectorListener =
-                        object : SetgameDetectorHelper.DetectorListener {
-                            override fun onError(error: String) {}
-                            override fun onResults(
-                                    results: MutableList<Detected>?,
-                                    inferenceTime: Long,
+                        currentModel = DetectorHelper.MODEL_SETGAME,
+                        detectorErrorListener =
+                        object : DetectorHelper.DetectorErrorListener {
+                            override fun onDetectorError(error: String) {
+                                // no op
+                            }
+                        },
+                        detectorResultsListener =
+                        object : DetectorHelper.DetectorResultsListener {
+                            override fun onDetectorResults(
+                                    results: List<Detection>?,
                                     imageHeight: Int,
                                     imageWidth: Int
                             ) {
                                 assertNotNull(results)
-                                var total = 0
-                                if (results != null) {
-                                    for (c in results) {
-                                        if (c is Grouppable) {
-                                            total = total + c.getGroupIds().size
-                                        }
-                                    }
-                                }
-                                assert(total > 0)
+                                assert(results!!.isNotEmpty())
                             }
                         }
                 )

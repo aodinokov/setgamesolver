@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tensorflow.lite.examples.objectdetection
+package com.github.aodinokov.setgameresolver
 
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -22,7 +22,7 @@ import android.content.Context
 import android.util.Log
 import android.view.Surface
 import com.google.gson.Gson
-import org.tensorflow.lite.examples.objectdetection.fragments.DelegationMode
+import com.github.aodinokov.setgameresolver.fragments.DelegationMode
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage

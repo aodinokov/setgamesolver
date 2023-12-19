@@ -27,7 +27,7 @@
         android:layout_marginBottom="@dimen/bottom_sheet_peek_height"
         app:scaleType="fillStart" />
 
-    <org.tensorflow.lite.examples.objectdetection.OverlayView
+    <com.github.aodinokov.setgameresolver.OverlayView
         android:id="@+id/overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

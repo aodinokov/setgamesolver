@@ -8,7 +8,7 @@
 
     <fragment
         android:id="@+id/permissions_fragment"
-        android:name="com.github.aodinokov.setgameresolver.fragments.PermissionsFragment"
+        android:name="com.github.aodinokov.setgamesolver.fragments.PermissionsFragment"
         android:label="PermissionsFragment" >
 
         <action
@@ -21,7 +21,7 @@
 
     <fragment
         android:id="@+id/camera_fragment"
-        android:name="com.github.aodinokov.setgameresolver.fragments.CameraFragment"
+        android:name="com.github.aodinokov.setgamesolver.fragments.CameraFragment"
         android:label="CameraFragment" >
 
 

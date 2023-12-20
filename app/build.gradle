@@ -24,7 +24,7 @@ android {
     compileSdkVersion 33
     defaultConfig {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        applicationId "com.github.aodinokov.setgameresolver"
+        applicationId "com.github.aodinokov.setgamesolver"
         minSdkVersion 21
         targetSdkVersion 33
         versionCode 1
@@ -60,7 +60,7 @@ android {
     testOptions {
         unitTests.includeAndroidResources = true
     }
-    namespace 'com.github.aodinokov.setgameresolver'
+    namespace 'com.github.aodinokov.setgamesolver'
 
 }
 

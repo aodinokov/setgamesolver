@@ -27,7 +27,7 @@
         android:layout_marginBottom="@dimen/bottom_sheet_peek_height"
         app:scaleType="fillStart" />
 
-    <com.github.aodinokov.setgameresolver.OverlayView
+    <com.github.aodinokov.setgamesolver.OverlayView
         android:id="@+id/overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

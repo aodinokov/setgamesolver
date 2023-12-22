@@ -18,17 +18,20 @@
         android:layout_marginTop="@dimen/bottom_sheet_default_row_margin">
 
         <TextView
-            android:text="@string/label_cameras"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="@dimen/bottom_sheet_text_size"
-            android:textColor="@color/bottom_sheet_text_color" />
+            android:text="@string/label_cameras"
+            android:gravity="center"
+            android:layout_centerVertical="true"
+            android:textColor="@color/bottom_sheet_text_color"
+            android:textSize="@dimen/resolution_dialog_text_size" />
 
         <androidx.appcompat.widget.AppCompatSpinner
             android:id="@+id/spinner_camera"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:minWidth="@dimen/camera_spinner_min_width"
+            android:minHeight="@dimen/camera_spinner_min_height"
             android:spinnerMode="dropdown"
             android:theme="@style/BottomSheetSpinnerItemStyle"
             android:layout_alignParentRight="true"/>
@@ -42,9 +45,11 @@
 
         <TextView
             android:text="@string/label_resolutions"
+            android:gravity="center"
+            android:layout_centerVertical="true"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="@dimen/bottom_sheet_text_size"
+            android:textSize="@dimen/resolution_dialog_text_size"
             android:textColor="@color/bottom_sheet_text_color" />
 
         <androidx.appcompat.widget.AppCompatSpinner
@@ -52,6 +57,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:minWidth="@dimen/resolution_spinner_min_width"
+            android:minHeight="@dimen/resolution_spinner_min_height"
             android:spinnerMode="dropdown"
             android:theme="@style/BottomSheetSpinnerItemStyle"
             android:layout_alignParentRight="true"/>
@@ -61,7 +67,7 @@
         <RelativeLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="15dp"
+            android:layout_margin="@dimen/bottom_sheet_default_row_margin"
             android:layout_centerHorizontal="true">
 
             <Button

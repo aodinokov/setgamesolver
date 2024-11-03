@@ -52,16 +52,6 @@ android {
         }
     }
 
-    flavorDimensions "version"
-    productFlavors {
-        pro {
-            applicationIdSuffix ".pro"
-        }
-        free {
-
-        }
-    }
-
     buildFeatures {
         viewBinding true
     }

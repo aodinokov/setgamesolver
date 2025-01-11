@@ -81,5 +81,9 @@
         <!--item>External</item-->
     </string-array>
 
+    <string name="label_camera_permission_title">Permissions needed</string>
+    <string name="label_camera_permission_why">This app needs access to your camera to be able to detect SET cards and find sets</string>
+    <string name="label_camera_permission_granted">Permission request granted</string>
+    <string name="label_camera_permission_denied">Permission request denied</string>
 
 </resources>

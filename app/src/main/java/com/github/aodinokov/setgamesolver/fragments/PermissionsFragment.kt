@@ -17,6 +17,7 @@
 package com.github.aodinokov.setgamesolver.fragments
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -40,10 +41,10 @@ class PermissionsFragment : Fragment() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()
         ) { isGranted: Boolean ->
             if (isGranted) {
-                Toast.makeText(context, "Permission request granted", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, resources.getString(R.string.label_camera_permission_granted), Toast.LENGTH_LONG).show()
                 navigateToCamera()
             } else {
-                Toast.makeText(context, "Permission request denied", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, resources.getString(R.string.label_camera_permission_denied), Toast.LENGTH_LONG).show()
             }
         }
 
@@ -57,8 +58,18 @@ class PermissionsFragment : Fragment() {
                 navigateToCamera()
             }
             else -> {
-                requestPermissionLauncher.launch(
-                        Manifest.permission.CAMERA)
+                val builder: AlertDialog.Builder = AlertDialog.Builder(context)
+                builder
+                    .setMessage(resources.getString(R.string.label_camera_permission_why))
+                    .setTitle(resources.getString(R.string.label_camera_permission_title))
+                    .setPositiveButton("Ok") { dialog, which ->
+                        requestPermissionLauncher.launch(
+                            Manifest.permission.CAMERA)
+                    }
+
+                val dialog: AlertDialog = builder.create()
+                dialog.show()
+
             }
         }
     }

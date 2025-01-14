@@ -34,7 +34,7 @@
             android:minHeight="@dimen/camera_spinner_min_height"
             android:spinnerMode="dropdown"
             android:theme="@style/BottomSheetSpinnerItemStyle"
-            android:layout_alignParentRight="true"/>
+            android:layout_alignParentEnd="true"/>
 
     </RelativeLayout>
     <!-- Camera selection row -->
@@ -60,7 +60,7 @@
             android:minHeight="@dimen/resolution_spinner_min_height"
             android:spinnerMode="dropdown"
             android:theme="@style/BottomSheetSpinnerItemStyle"
-            android:layout_alignParentRight="true"/>
+            android:layout_alignParentEnd="true"/>
 
     </RelativeLayout>
 
@@ -79,7 +79,7 @@
                 android:id="@+id/cancel_text"
                 android:layout_width="@dimen/resolution_dialog_buttons_width"
                 android:layout_height="wrap_content"
-                android:layout_alignParentRight="true"
+                android:layout_alignParentEnd="true"
                 android:text = "@string/label_cancel_btn" />
 
         </RelativeLayout>

@@ -1,0 +1,11 @@
+.idea
+.gradle
+app/build
+app/release
+model/steps/*.deb
+model/steps/wrk
+model/steps/wrk1
+model/steps/x
+model/steps/y
+app/src/androidTest/assets/setgame-classify-color.json
+app/src/androidTest/assets/*.tflite

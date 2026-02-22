@@ -36,8 +36,8 @@ class SetgameClassificationModel(tf.keras.Model):
         # ], name="color")
 
         # create 4 heads (Dense layers) with 3 one-hot
-        self.heads = [layers.Dense(n, activation='softmax', name=f'head_{i}') 
-                      for i, n in enumerate([3, 3, 3, 3])]
+        self.heads = [layers.Dense(3, activation='softmax', name=f'{name}_output') 
+                      for i, name in enumerate(["count", "color", "fill", "shape"])]
 
     def call(self, inputs, training=False):
         # common input (color (flow B) in future may take this directly)
@@ -51,20 +51,17 @@ class SetgameClassificationModel(tf.keras.Model):
         # x_custom = self.custom_branch(x_input)
 
         # combine output of 3 heads
-        outputs = [head(x_mobile) for head in self.heads]
+        # outputs = [head(x_mobile) for head in self.heads]
         # TODO: add flow B
         # outputs.append(x_custom)
-        return outputs
-
-    # Not absolutely necessary, but it's better to have this helpers here
-    # loss_fns depend heaviliy on the model structure, so lets keep this code as a static fn
-    def get_loss_fns(self):
-        loss_fns = [tf.keras.losses.SparseCategoricalCrossentropy()]
-        #loss_fns.append(tf.keras.losses.Hinge())
-        loss_fns.append(tf.keras.losses.SparseCategoricalCrossentropy())
-        loss_fns.append(tf.keras.losses.SparseCategoricalCrossentropy())
-        loss_fns.append(tf.keras.losses.SparseCategoricalCrossentropy())
-        return loss_fns
+        #return outputs
+        # Return a dictionary matching your dataset keys
+        return {
+            "count_output": self.heads[0](x_mobile),
+            "color_output": self.heads[1](x_mobile),
+            "fill_output": self.heads[2](x_mobile),
+            "shape_output": self.heads[3](x_mobile)
+        }
 
     # --- Fine-tuning phase ---
     def set_fine_tuning(self, enabled=True):

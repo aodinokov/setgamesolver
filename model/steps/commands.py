@@ -38,7 +38,16 @@ def classification_train(
     # Display the model summary
     model.summary()
 
+    # some callback
     callbacks = []
+    # let's do this by default
+    callbacks.append(tf.keras.callbacks.EarlyStopping(
+            monitor='val_loss',
+            patience=7,
+            restore_best_weights=True,
+            verbose=1
+        )
+    )
     if not checkpoint_path is None:
         callbacks.append(tf.keras.callbacks.ModelCheckpoint(
             filepath = checkpoint_path,
@@ -55,22 +64,22 @@ def classification_train(
                         verbose=1,
                         callbacks=callbacks)
 
-    # # Final evaluattion of the model
-    # test_loss, test_accuracy = model.evaluate(val_ds, verbose=0)
-    # print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_accuracy:.4f}")
+    # Final evaluattion of the model
+    test_loss, test_accuracy = model.evaluate(val_ds, verbose=0)
+    print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_accuracy:.4f}")
 
-    # # Make predictions by original model
-    # for images, labels in val_ds.take(1):
-    #     predictions = model.predict(images)
+    # Make predictions by original model
+    for images, labels in val_ds.take(1):
+        predictions = model.predict(images)
         
-    #     # predictions will be a list of 4 arrays if you have 4 output layers
-    #     # To see the 'count' prediction for first 5 images:
-    #     count_preds = np.argmax(predictions[0], axis=1)
-    #     actual_count = labels[0].numpy() # labels[0] is labels_count
+        # predictions will be a list of 4 arrays if you have 4 output layers
+        # To see the 'count' prediction for first 5 images:
+        count_preds = np.argmax(predictions[0], axis=1)
+        actual_count = labels[0].numpy() # labels[0] is labels_count
         
-    #     print("Predicted counts:", count_preds[:5])
-    #     print("Actual counts:   ", actual_count[:5])
-    #     break
+        print("Predicted counts:", count_preds[:5])
+        print("Actual counts:   ", actual_count[:5])
+        break
 
 # main utility code
 import argparse

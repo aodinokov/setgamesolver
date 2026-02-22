@@ -69,9 +69,12 @@ class ClassificationDataset:
         path_ds = tf.data.Dataset.from_tensor_slices(image_paths)
         img_ds = path_ds.map(_load_image, num_parallel_calls=tf.data.AUTOTUNE)
 
-        label_ds = tf.data.Dataset.from_tensor_slices((
-            labels_count, labels_color, labels_fill, labels_shape
-        ))
+        label_ds = tf.data.Dataset.from_tensor_slices({
+            "count_output": labels_count,
+            "color_output": labels_color,
+            "fill_output": labels_fill,
+            "shape_output": labels_shape
+        })
 
         # combine img/labels datasets and labels
         ds = tf.data.Dataset.zip((img_ds, label_ds))

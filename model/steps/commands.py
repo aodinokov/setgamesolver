@@ -2,7 +2,6 @@ import os
 import tensorflow as tf
 from tensorflow.keras import layers, applications, optimizers, models
 
-import config as cfg
 import datasets as dtst
 import models as mdl
 
@@ -11,7 +10,7 @@ import models as mdl
 def classification_train(
         dataset_path="wrk/mixed/",      # use dataset from this path
         from_checkpoint_path = None,    # load checkpoint before training (if set)
-        checkpoint_path = "checkpoints/default.set_model.weights.h5",         # store checkpoints periodically here (if set)
+        checkpoint_path = "checkpoints/default.classification.setgamemodel.weights.h5",         # store checkpoints periodically here (if set)
         finetune = False,               # enable fine_tune if enabled (retrain base model)
         finetune_lr = 1e-5,             # adjust learning rate for finetune (useful for finetuning, since it should be smaller than usual LR)
         epoch_number = 100              # default max
@@ -89,7 +88,7 @@ def main():
                               help="Path to dataset directory")
     train_parser.add_argument("--from_checkpoint_path", type=str, default=None, 
                               help="Initial weights to load")
-    train_parser.add_argument("--checkpoint_path", type=str, default="checkpoints/default.set_model.weights.h5", 
+    train_parser.add_argument("--checkpoint_path", type=str, default="checkpoints/default.classification.setgamemodel.weights.h5", 
                               help="Directory to save periodic checkpoints")    
     train_parser.add_argument("--finetune", action="store_true", 
                               help="Enable fine-tuning of the base model")

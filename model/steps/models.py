@@ -71,7 +71,7 @@ class SetgameClassificationModel(tf.keras.Model):
         print(f"--- Fine-tuning: {enabled} ---")
         self.base_model.trainable = enabled
 
-    def load(self, checkpoint_path=cfg.CKPT_PATH):        
+    def load(self, checkpoint_path):        
         if os.path.exists(checkpoint_path):
             print(f"--- Found checkpoint - Loading weights from: {checkpoint_path} ---")
             # For Subclassing model we need to do 1 fake pass, 
@@ -82,6 +82,6 @@ class SetgameClassificationModel(tf.keras.Model):
             print("--- No checkpoints. Using ImageNet ---")
             raise FileNotFoundError(f"couldn't find {checkpoint_path}")
         
-    def save(self, checkpoint_path=cfg.CKPT_PATH):
+    def save(self, checkpoint_path):
         self.save_weights(checkpoint_path)
         

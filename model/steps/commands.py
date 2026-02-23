@@ -65,20 +65,22 @@ def classification_train(
                         callbacks=callbacks)
 
     # Final evaluattion of the model
-    test_loss, test_accuracy = model.evaluate(val_ds, verbose=0)
-    print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_accuracy:.4f}")
+    results = model.evaluate(val_ds, verbose=0)
+    total_loss = results[0]
+    print(f"Test total loss: {total_loss:.4f}")
+    test_accuracies = results[-4:]
+    for name, acc in zip(['Count', 'Color', 'Fill', 'Shape'], test_accuracies):
+        print(f"{name} Accuracy: {acc:.4f}")
 
     # Make predictions by original model
     for images, labels in val_ds.take(1):
         predictions = model.predict(images)
-        
-        # predictions will be a list of 4 arrays if you have 4 output layers
-        # To see the 'count' prediction for first 5 images:
-        count_preds = np.argmax(predictions[0], axis=1)
-        actual_count = labels[0].numpy() # labels[0] is labels_count
-        
-        print("Predicted counts:", count_preds[:5])
-        print("Actual counts:   ", actual_count[:5])
+
+        for name, preds in predictions.items():
+            p = np.argmax(preds, axis=1)
+            actuals = labels[name].numpy()
+            print(f"{name} predictions: {p[:5]}")
+            print(f"{name} actuals:     {actuals[:5]}")
         break
 
 # main utility code

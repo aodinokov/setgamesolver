@@ -4,12 +4,6 @@ from tensorflow.keras import layers, applications, optimizers, models
 
 import config as cfg
 
-# Идея - сделать сеть
-# которая будет иметь свой инпут, передавать его на MobileNetV3
-# у которой будет 3 головы - кол-во, форма и тип закраски
-# возможно она должна быть чб чтобы поэткономить место
-# и отдельно брать свой инпут и оценивать цвет (hinge loss)???
-
 class SetgameClassificationModel(tf.keras.Model):
     def __init__(self):
         super(SetgameClassificationModel, self).__init__()
@@ -73,7 +67,13 @@ class SetgameClassificationModel(tf.keras.Model):
             print(f"--- Found checkpoint - Loading weights from: {checkpoint_path} ---")
             # For Subclassing model we need to do 1 fake pass, 
             # to build vars, or call build()
-            self.build((None, cfg.IMG_SIZE[0], cfg.IMG_SIZE[1], 3))
+            #self.build((None, cfg.IMG_SIZE[0], cfg.IMG_SIZE[1], 3))            
+            # Create a dummy input tensor with the correct shape
+            dummy_shape = (1, cfg.IMG_SIZE[0], cfg.IMG_SIZE[1], 3)
+            dummy_input = tf.zeros(dummy_shape)
+            
+            # Execute one call to build all internal variables
+            _ = self(dummy_input, training=False)
             self.load_weights(checkpoint_path)
         else:
             print("--- No checkpoints. Using ImageNet ---")

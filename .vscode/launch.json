@@ -12,6 +12,7 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/model/steps/",
             "args": ["classification_train"],
+            // "args": ["classification_train", "--from_checkpoint_path", "checkpoints/2026-02-22.classification.setgamemodel.weights.h5"],
         }
     ]
 }

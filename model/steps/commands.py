@@ -68,7 +68,10 @@ def classification_train(
     results = model.evaluate(val_ds, verbose=0)
     total_loss = results[0]
     print(f"Test total loss: {total_loss:.4f}")
-    test_accuracies = results[-4:]
+    test_losses = results[1:5]
+    for name, lss in zip(['Count', 'Color', 'Fill', 'Shape'], test_losses):
+        print(f"{name} Loss: {lss:.4f}")
+    test_accuracies = results[5:9]
     for name, acc in zip(['Count', 'Color', 'Fill', 'Shape'], test_accuracies):
         print(f"{name} Accuracy: {acc:.4f}")
 

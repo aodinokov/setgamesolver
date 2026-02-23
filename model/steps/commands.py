@@ -30,7 +30,7 @@ def classification_train(
         callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.2,
-            patience=5,
+            patience=20,
             min_lr=1e-7
         ))
 

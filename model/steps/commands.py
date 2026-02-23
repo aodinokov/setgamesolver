@@ -14,17 +14,26 @@ def classification_train(
         # checkpoint_path can be "ex2/cp-{epoch:04d}.weights.h5"
         finetune = False,               # enable fine_tune if enabled (retrain base model)
         finetune_lr = 1e-5,             # adjust learning rate for finetune (useful for finetuning, since it should be smaller than usual LR)
-        epoch_number = 100              # default max
+        epoch_number = 1000             # default max
         ):
     model = mdl.SetgameClassificationModel()
     # if "from" checkpoint path is set - use it
     if not from_checkpoint_path is None:
         model.load(from_checkpoint_path)
 
+    callbacks = []
     learning_rate = 1e-3
     if finetune:
         learning_rate = finetune_lr
         model.set_fine_tuning(True)
+        # added potentially this will add value for finetuning
+        callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.2,
+            patience=5,
+            min_lr=1e-7
+        ))
+
 
     # Compile the model
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=learning_rate), 
@@ -33,13 +42,12 @@ def classification_train(
                     'fill_output': 'sparse_categorical_crossentropy', 
                     'shape_output': 'sparse_categorical_crossentropy'},
                 loss_weights={'count_output': 1.0, 'color_output': 1.0,'fill_output': 1.0, 'shape_output': 1.0},
-                metrics=['accuracy', 'accuracy', 'accuracy', 'accuracy'])
+                metrics=['accuracy', 'accuracy', 'accuracy', 'accuracy'])   # maybe need 'sparse_categorical_accuracy',...
 
     # Display the model summary
     model.summary()
 
     # some callback
-    callbacks = []
     # let's do this by default
     callbacks.append(tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
@@ -114,7 +122,7 @@ def main():
                               help="Enable fine-tuning of the base model")
     train_parser.add_argument("--finetune_lr", type=float, default=1e-5, 
                               help="Learning rate for fine-tuning")
-    train_parser.add_argument("--epoch_number", type=int, default=100, 
+    train_parser.add_argument("--epoch_number", type=int, default=1000, 
                               help="Total number of epochs")
 
 

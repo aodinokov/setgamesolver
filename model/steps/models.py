@@ -20,6 +20,7 @@ class SetgameClassificationModel(tf.keras.Model):
         self.set_fine_tuning(False)
         
         self.pooling = layers.GlobalAveragePooling2D()
+        self.droupout = layers.Dropout(0.3)
         
         # TODO: flow B - color
         # self.custom_branch = models.Sequential([
@@ -30,7 +31,10 @@ class SetgameClassificationModel(tf.keras.Model):
         # ], name="color")
 
         # create 4 heads (Dense layers) with 3 one-hot
-        self.heads = [layers.Dense(3, activation='softmax', name=f'{name}_output') 
+        self.heads = [layers.Dense(3, 
+                                   activation='softmax',
+                                   kernel_regularizer=tf.keras.regularizers.l2(1e-4),   # added 
+                                   name=f'{name}_output') 
                       for i, name in enumerate(["count", "color", "fill", "shape"])]
 
     def call(self, inputs, training=False):
@@ -40,6 +44,7 @@ class SetgameClassificationModel(tf.keras.Model):
         # flow A - base model 
         x_mobile = self.base_model(x_input, training=training)
         x_mobile = self.pooling(x_mobile)
+        x_mobile = self.droupout(x_mobile, training=training)    # added
 
         # TODO: flow B - color
         # x_custom = self.custom_branch(x_input)

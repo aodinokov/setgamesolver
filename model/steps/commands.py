@@ -43,7 +43,7 @@ def classification_train(
     # let's do this by default
     callbacks.append(tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
-            patience=7,
+            patience=30,
             restore_best_weights=True,
             verbose=1
         )

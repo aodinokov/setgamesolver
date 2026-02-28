@@ -1,9 +1,12 @@
+import os
+
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
 import datasets as dtst
 import models as mdl
+import config as cfg
 
 # this file contains all utilities commands to train/evaluate and etc models
 
@@ -114,6 +117,124 @@ def classification_export(
         tflite_model = converter.convert()
         with open(tflite_path, "wb") as f:
             f.write(tflite_model)
+
+        # wasn't able to find a working method adding metadata to tflite.
+        # adding metadata which is mostly constant info
+        # see https://ai.google.dev/edge/litert/conversion/tensorflow/metadata on how to add metadata
+
+        # from tflite_support import flatbuffers
+        # from tflite_support import metadata as _metadata
+        # from tflite_support import metadata_schema_py_generated as _metadata_fb
+        
+        # labels_file_path = "classification-setgamemodel.labels"
+
+        # # Creates model info.
+        # model_meta = _metadata_fb.ModelMetadataT()
+        # model_meta.name = "MobileNetV3 setgame card classifier"
+        # model_meta.description = ("Classify the cards 4 features, each can have 3 values: count, color, fill, shape")
+        # model_meta.version = "v1"
+        # model_meta.author = "TensorFlow"
+        # model_meta.license = ("Apache License. Version 2.0 "
+        #                     "http://www.apache.org/licenses/LICENSE-2.0.")
+        
+        # # Creates input info.
+        # input_meta = _metadata_fb.TensorMetadataT()
+        # input_meta.name = "image"
+        # input_meta.description = (
+        #     "Input image to be classified. The expected image is {0} x {1}, with "
+        #     "three channels (red, blue, and green) per pixel. Each value in the "
+        #     "tensor is a single byte between 0 and 255.".format(cfg.IMG_SIZE[0], cfg.IMG_SIZE[0]))
+        # input_meta.content = _metadata_fb.ContentT()
+        # input_meta.content.contentProperties = _metadata_fb.ImagePropertiesT()
+        # input_meta.content.contentProperties.colorSpace = (
+        #     _metadata_fb.ColorSpaceType.RGB)
+        # input_meta.content.contentPropertiesType = (
+        #     _metadata_fb.ContentProperties.ImageProperties)
+        # input_normalization = _metadata_fb.ProcessUnitT()
+        # input_normalization.optionsType = (
+        #     _metadata_fb.ProcessUnitOptions.NormalizationOptions)
+        # input_normalization.options = _metadata_fb.NormalizationOptionsT()
+        # input_normalization.options.mean = [127.5]
+        # input_normalization.options.std = [127.5]
+        # input_meta.processUnits = [input_normalization]
+        # input_stats = _metadata_fb.StatsT()
+        # input_stats.max = [255]
+        # input_stats.min = [0]
+        # input_meta.stats = input_stats
+
+        # # Creates output info.
+        # output_meta = _metadata_fb.TensorMetadataT()
+        # output_meta.name = "probability"
+        # output_meta.description = "Probabilities of the 1 of the 3 values of the feature."
+        # output_meta.content = _metadata_fb.ContentT()
+        # output_meta.content.content_properties = _metadata_fb.FeaturePropertiesT()
+        # output_meta.content.contentPropertiesType = (
+        #     _metadata_fb.ContentProperties.FeatureProperties)
+        # output_stats = _metadata_fb.StatsT()
+        # output_stats.max = [1.0]
+        # output_stats.min = [0.0]
+        # output_meta.stats = output_stats
+        # # not sure:
+        # label_file = _metadata_fb.AssociatedFileT()
+        # label_file.name = os.path.basename(labels_file_path)
+        # label_file.description = "Labels for objects that the model can recognize."
+        # label_file.type = _metadata_fb.AssociatedFileType.TENSOR_AXIS_LABELS
+        # output_meta.associatedFiles = [label_file]
+
+        # # Creates subgraph info.
+        # subgraph = _metadata_fb.SubGraphMetadataT()
+        # subgraph.inputTensorMetadata = [input_meta]
+        # subgraph.outputTensorMetadata = [output_meta]
+        # model_meta.subgraphMetadata = [subgraph]
+
+        # b = flatbuffers.Builder(0)
+        # b.Finish(
+        #     model_meta.Pack(b),
+        #     _metadata.MetadataPopulator.METADATA_FILE_IDENTIFIER)
+        # metadata_buf = b.Output()
+
+        # # Pack metadata and associated files into the modely
+        # populator = _metadata.MetadataPopulator.with_model_file(tflite_model)
+        # populator.load_metadata_buffer(metadata_buf)
+        # populator.load_associated_files(["labels_file_path"])
+        # populator.populate()
+
+        # import zipfile
+        # import io
+
+        # def pack_tflite_with_metadata(model_path, output_path, label_files, metadata_json_path):
+        #     # 1. Читаем исходную модель
+        #     with open(model_path, 'rb') as f:
+        #         model_content = f.read()
+
+        #     # 2. Создаем Zip-архив в памяти
+        #     zip_buffer = io.BytesIO()
+        #     with zipfile.ZipFile(zip_buffer, 'w') as zf:
+        #         # Добавляем JSON описания
+        #         zf.write(metadata_json_path, "metadata.json")
+        #         # Добавляем все твои файлы меток
+        #         for file in label_files:
+        #             zf.write(file, file)
+
+        #     # 3. Склеиваем модель и Zip-архив
+        #     # В спецификации TFLite Zip-архив просто дописывается в конец файла
+        #     with open(output_path, 'wb') as f:
+        #         f.write(model_content)
+        #         f.write(zip_buffer.getvalue())
+
+        # # Использование для твоего случая:
+        # labels = [
+        #     "classification-setgamemodel-color.labels",
+        #     "classification-setgamemodel-shape.labels",
+        #     "classification-setgamemodel-fill.labels",
+        #     "classification-setgamemodel-count.labels"
+        # ]
+        # pack_tflite_with_metadata(
+        #     tflite_path, 
+        #     f"{tflite_path}.meta", 
+        #     labels, 
+        #     "classification-setgamemodel-metadata.json"
+        # )
 
 # main utility code
 import argparse

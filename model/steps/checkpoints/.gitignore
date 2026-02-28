@@ -1,1 +1,2 @@
+# ignore all checkpoints unless manually added
 *.h5

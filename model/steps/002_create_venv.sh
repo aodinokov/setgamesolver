@@ -6,4 +6,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install tensorflow[and-cuda]
 
+# mediapipe didn't work
+# tflite-support - doesn't work on python 3.12
+# pip install ai-edge-litert tflite-support didn't work as well
+
 # next python steps must be ran in venv (source .venv/bin/activate)

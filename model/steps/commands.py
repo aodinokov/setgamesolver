@@ -118,86 +118,94 @@ def classification_export(
         with open(tflite_path, "wb") as f:
             f.write(tflite_model)
 
-        # wasn't able to find a working method adding metadata to tflite.
-        # adding metadata which is mostly constant info
-        # see https://ai.google.dev/edge/litert/conversion/tensorflow/metadata on how to add metadata
-
-        # from tflite_support import flatbuffers
-        # from tflite_support import metadata as _metadata
-        # from tflite_support import metadata_schema_py_generated as _metadata_fb
+        # add metadata:
+        # see https://ai.google.dev/edge/litert/conversion/tensorflow/metadata on how to update tflite metadata
+        # those steps required some fixes to the code in tensorflow_lite_support.
+        # see local tensorflow_lite_support/Readme.md
+        import flatbuffers
+        from tensorflow_lite_support.metadata import metadata as _metadata
+        from tensorflow_lite_support.metadata import metadata_schema_py_generated as _metadata_fb
         
-        # labels_file_path = "classification-setgamemodel.labels"
+        labels_file_paths = [
+            "classification-setgamemodel-count.labels",
+            "classification-setgamemodel-color.labels",
+            "classification-setgamemodel-fill.labels",
+            "classification-setgamemodel-shape.labels"
+        ]
 
-        # # Creates model info.
-        # model_meta = _metadata_fb.ModelMetadataT()
-        # model_meta.name = "MobileNetV3 setgame card classifier"
-        # model_meta.description = ("Classify the cards 4 features, each can have 3 values: count, color, fill, shape")
-        # model_meta.version = "v1"
-        # model_meta.author = "TensorFlow"
-        # model_meta.license = ("Apache License. Version 2.0 "
-        #                     "http://www.apache.org/licenses/LICENSE-2.0.")
+
+        # Creates model info.
+        model_meta = _metadata_fb.ModelMetadataT()
+        model_meta.name = "MobileNetV3 setgame card classifier"
+        model_meta.description = ("Classify the cards 4 features, each can have 3 values: count, color, fill, shape")
+        model_meta.version = "v1"
+        model_meta.author = "TensorFlow"
+        model_meta.license = ("Apache License. Version 2.0 "
+                            "http://www.apache.org/licenses/LICENSE-2.0.")
         
-        # # Creates input info.
-        # input_meta = _metadata_fb.TensorMetadataT()
-        # input_meta.name = "image"
-        # input_meta.description = (
-        #     "Input image to be classified. The expected image is {0} x {1}, with "
-        #     "three channels (red, blue, and green) per pixel. Each value in the "
-        #     "tensor is a single byte between 0 and 255.".format(cfg.IMG_SIZE[0], cfg.IMG_SIZE[0]))
-        # input_meta.content = _metadata_fb.ContentT()
-        # input_meta.content.contentProperties = _metadata_fb.ImagePropertiesT()
-        # input_meta.content.contentProperties.colorSpace = (
-        #     _metadata_fb.ColorSpaceType.RGB)
-        # input_meta.content.contentPropertiesType = (
-        #     _metadata_fb.ContentProperties.ImageProperties)
-        # input_normalization = _metadata_fb.ProcessUnitT()
-        # input_normalization.optionsType = (
-        #     _metadata_fb.ProcessUnitOptions.NormalizationOptions)
-        # input_normalization.options = _metadata_fb.NormalizationOptionsT()
-        # input_normalization.options.mean = [127.5]
-        # input_normalization.options.std = [127.5]
-        # input_meta.processUnits = [input_normalization]
-        # input_stats = _metadata_fb.StatsT()
-        # input_stats.max = [255]
-        # input_stats.min = [0]
-        # input_meta.stats = input_stats
+        # Creates input info.
+        input_meta = _metadata_fb.TensorMetadataT()
+        input_meta.name = "image"
+        input_meta.description = (
+            "Input image to be classified. The expected image is {0} x {1}, with "
+            "three channels (red, blue, and green) per pixel. Each value in the "
+            "tensor is a single byte between 0 and 255.".format(cfg.IMG_SIZE[0], cfg.IMG_SIZE[0]))
+        input_meta.content = _metadata_fb.ContentT()
+        input_meta.content.contentProperties = _metadata_fb.ImagePropertiesT()
+        input_meta.content.contentProperties.colorSpace = (
+            _metadata_fb.ColorSpaceType.RGB)
+        input_meta.content.contentPropertiesType = (
+            _metadata_fb.ContentProperties.ImageProperties)
+        input_normalization = _metadata_fb.ProcessUnitT()
+        input_normalization.optionsType = (
+            _metadata_fb.ProcessUnitOptions.NormalizationOptions)
+        input_normalization.options = _metadata_fb.NormalizationOptionsT()
+        input_normalization.options.mean = [127.5]
+        input_normalization.options.std = [127.5]
+        input_meta.processUnits = [input_normalization]
+        input_stats = _metadata_fb.StatsT()
+        input_stats.max = [255]
+        input_stats.min = [0]
+        input_meta.stats = input_stats
 
-        # # Creates output info.
-        # output_meta = _metadata_fb.TensorMetadataT()
-        # output_meta.name = "probability"
-        # output_meta.description = "Probabilities of the 1 of the 3 values of the feature."
-        # output_meta.content = _metadata_fb.ContentT()
-        # output_meta.content.content_properties = _metadata_fb.FeaturePropertiesT()
-        # output_meta.content.contentPropertiesType = (
-        #     _metadata_fb.ContentProperties.FeatureProperties)
-        # output_stats = _metadata_fb.StatsT()
-        # output_stats.max = [1.0]
-        # output_stats.min = [0.0]
-        # output_meta.stats = output_stats
-        # # not sure:
-        # label_file = _metadata_fb.AssociatedFileT()
-        # label_file.name = os.path.basename(labels_file_path)
-        # label_file.description = "Labels for objects that the model can recognize."
-        # label_file.type = _metadata_fb.AssociatedFileType.TENSOR_AXIS_LABELS
-        # output_meta.associatedFiles = [label_file]
+        # Creates output info.
+        output_meta_arr = []
+        for i in range(4):
+            output_meta_arr.append(_metadata_fb.TensorMetadataT())
+            output_meta_arr[i].name = f"probability{i}" # TODO: change to the proper name
+            output_meta_arr[i].description = "Probabilities of the 1 of the 3 values of the feature."
+            output_meta_arr[i].content = _metadata_fb.ContentT()
+            output_meta_arr[i].content.content_properties = _metadata_fb.FeaturePropertiesT()
+            output_meta_arr[i].content.contentPropertiesType = (
+                _metadata_fb.ContentProperties.FeatureProperties)
+            output_stats = _metadata_fb.StatsT()
+            output_stats.max = [1.0]
+            output_stats.min = [0.0]
+            output_meta_arr[i].stats = output_stats
+            # not sure:
+            label_file = _metadata_fb.AssociatedFileT()
+            label_file.name = os.path.basename(labels_file_paths[i])
+            label_file.description = "Labels for objects that the model can recognize."
+            label_file.type = _metadata_fb.AssociatedFileType.TENSOR_AXIS_LABELS
+            output_meta_arr[i].associatedFiles = [label_file]
 
-        # # Creates subgraph info.
-        # subgraph = _metadata_fb.SubGraphMetadataT()
-        # subgraph.inputTensorMetadata = [input_meta]
-        # subgraph.outputTensorMetadata = [output_meta]
-        # model_meta.subgraphMetadata = [subgraph]
+        # Creates subgraph info.
+        subgraph = _metadata_fb.SubGraphMetadataT()
+        subgraph.inputTensorMetadata = [input_meta]
+        subgraph.outputTensorMetadata = output_meta_arr
+        model_meta.subgraphMetadata = [subgraph]
 
-        # b = flatbuffers.Builder(0)
-        # b.Finish(
-        #     model_meta.Pack(b),
-        #     _metadata.MetadataPopulator.METADATA_FILE_IDENTIFIER)
-        # metadata_buf = b.Output()
+        b = flatbuffers.Builder(0)
+        b.Finish(
+            model_meta.Pack(b),
+            _metadata.MetadataPopulator.METADATA_FILE_IDENTIFIER)
+        metadata_buf = b.Output()
 
-        # # Pack metadata and associated files into the modely
-        # populator = _metadata.MetadataPopulator.with_model_file(tflite_model)
-        # populator.load_metadata_buffer(metadata_buf)
-        # populator.load_associated_files(["labels_file_path"])
-        # populator.populate()
+        # Pack metadata and associated files into the modely
+        populator = _metadata.MetadataPopulator.with_model_file(tflite_path)
+        populator.load_metadata_buffer(metadata_buf)
+        populator.load_associated_files(labels_file_paths)
+        populator.populate()
 
         # import zipfile
         # import io
@@ -235,6 +243,95 @@ def classification_export(
         #     labels, 
         #     "classification-setgamemodel-metadata.json"
         # )
+
+        # import flatbuffers
+        # import os
+        # import sys
+
+        # # Твои сгенерированные классы
+        # from tflite.Model import Model
+        # from tflite.ModelMetadata import ModelMetadata
+        # from tflite.Metadata import Metadata
+        # from tflite.Buffer import Buffer
+
+        # def patch_model(input_path, output_path):
+        #     with open(input_path, 'rb') as f:
+        #         buf = bytearray(f.read())
+
+        #     # 1. Распаковываем текущую модель
+        #     orig_model = Model.GetRootAs(buf, 0)
+        #     builder = flatbuffers.Builder(len(buf) + 1024)
+
+        #     # 2. Создаем Payload (само тело метаданных)
+        #     # Здесь мы создаем ModelMetadata, который Android Studio ждет внутри буфера
+        #     desc = builder.CreateString("SetGameSolver")
+        #     ModelMetadataStart(builder)
+        #     ModelMetadataAddDescription(builder, desc)
+        #     # В реальном сценарии здесь добавляются оффсеты для под-таблиц (Input/Output)
+        #     metadata_payload_offset = ModelMetadataEnd(builder)
+        #     builder.Finish(metadata_payload_offset)
+        #     payload_bytes = builder.Output()
+
+        #     # 3. Пересобираем буферы
+        #     # Нам нужно скопировать все старые буферы и добавить наш новый
+        #     new_buffers = []
+        #     for i in range(orig_model.BuffersLength()):
+        #         old_data = orig_model.Buffers(i).DataAsNumpy()
+        #         data_off = builder.CreateByteVector(old_data)
+        #         BufferStart(builder)
+        #         BufferAddData(builder, data_off)
+        #         new_buffers.append(BufferEnd(builder))
+
+        #     # Добавляем наш новый буфер с метаданными
+        #     payload_off = builder.CreateByteVector(payload_bytes)
+        #     BufferStart(builder)
+        #     BufferAddData(builder, payload_off)
+        #     new_metadata_buffer_idx = len(new_buffers)
+        #     new_buffers.append(BufferEnd(builder))
+
+        #     ModelStartBuffersVector(builder, len(new_buffers))
+        #     for b in reversed(new_buffers):
+        #         builder.PrependUOffsetTRelative(b)
+        #     final_buffers_v = builder.EndVector()
+
+        #     # 4. Пересобираем таблицу Metadata
+        #     new_metadata_entries = []
+        #     # Копируем старые (min_runtime_version, CONVERSION_METADATA)
+        #     for i in range(orig_model.MetadataLength()):
+        #         old_entry = orig_model.Metadata(i)
+        #         name_off = builder.CreateString(old_entry.Name().decode('utf-8'))
+        #         MetadataStart(builder)
+        #         MetadataAddName(builder, name_off)
+        #         MetadataAddBuffer(builder, old_entry.Buffer())
+        #         new_metadata_entries.append(MetadataEnd(builder))
+
+        #     # Добавляем запись TFLITE_METADATA, указывающую на наш новый буфер
+        #     name_off = builder.CreateString("TFLITE_METADATA")
+        #     MetadataStart(builder)
+        #     MetadataAddName(builder, name_off)
+        #     MetadataAddBuffer(builder, new_metadata_buffer_idx)
+        #     new_metadata_entries.append(MetadataEnd(builder))
+
+        #     ModelStartMetadataVector(builder, len(new_metadata_entries))
+        #     for m in reversed(new_metadata_entries):
+        #         builder.PrependUOffsetTRelative(m)
+        #     final_metadata_v = builder.EndVector()
+
+        #     # 5. Финализируем модель (копируем остальные поля)
+        #     # ВНИМАНИЕ: Для полной работы нужно скопировать Subgraphs, Tensors и т.д.
+        #     # Но так как мы не хотим хачить всю структуру, используй этот принцип:
+        #     ModelStart(builder)
+        #     ModelAddBuffers(builder, final_buffers_v)
+        #     ModelAddMetadata(builder, final_metadata_v)
+        #     # ... здесь должны быть вызовы для остальных полей из orig_model ...
+        #     model_off = ModelEnd(builder)
+        #     builder.Finish(model_off, b'TFL3') # Обязательный file_identifier
+
+        #     with open(output_path, 'wb') as f:
+        #         f.write(builder.Output())
+
+        # # ВНИМАНИЕ: Полная пересборка через Builder в Python требует копирования 
+        # # КАЖДОГО поля (Subgraphs, OperatorCodes и т.д.).
 
 # main utility code
 import argparse

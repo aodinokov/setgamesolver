@@ -5,6 +5,15 @@ from tensorflow.keras import layers, applications, optimizers, models
 import config as cfg
 
 class SetgameClassificationModel(tf.keras.Model):
+    
+    # names and sequence are important
+    output_names = [
+        "count",
+        "color",
+        "fill",
+        "shape"
+    ]
+
     def __init__(self):
         super(SetgameClassificationModel, self).__init__()
         
@@ -35,7 +44,7 @@ class SetgameClassificationModel(tf.keras.Model):
                                    activation='softmax',
                                    kernel_regularizer=tf.keras.regularizers.l2(1e-4),   # added 
                                    name=f'{name}_output') 
-                      for i, name in enumerate(["count", "color", "fill", "shape"])]
+                      for i, name in enumerate(self.output_names)]
 
     def call(self, inputs, training=False):
         # common input (color (flow B) in future may take this directly)
@@ -55,12 +64,7 @@ class SetgameClassificationModel(tf.keras.Model):
         # outputs.append(x_custom)
         #return outputs
         # Return a dictionary matching your dataset keys
-        return {
-            "count_output": self.heads[0](x_mobile),
-            "color_output": self.heads[1](x_mobile),
-            "fill_output": self.heads[2](x_mobile),
-            "shape_output": self.heads[3](x_mobile)
-        }
+        return { f'{name}_output': self.heads[i](x_mobile) for i, name in enumerate(self.output_names)}
 
     # --- Fine-tuning phase ---
     def set_fine_tuning(self, enabled=True):

@@ -149,7 +149,7 @@ def classification_export(
         input_meta.description = (
             "Input image to be classified. The expected image is {0} x {1}, with "
             "three channels (red, blue, and green) per pixel. Each value in the "
-            "tensor is a single byte between 0 and 255.".format(cfg.IMG_SIZE[0], cfg.IMG_SIZE[0]))
+            "tensor is a single byte between 0 and 255.".format(cfg.IMG_SIZE[0], cfg.IMG_SIZE[1]))
         input_meta.content = _metadata_fb.ContentT()
         input_meta.content.contentProperties = _metadata_fb.ImagePropertiesT()
         input_meta.content.contentProperties.colorSpace = (
@@ -206,132 +206,6 @@ def classification_export(
         populator.load_metadata_buffer(metadata_buf)
         populator.load_associated_files(labels_file_paths)
         populator.populate()
-
-        # import zipfile
-        # import io
-
-        # def pack_tflite_with_metadata(model_path, output_path, label_files, metadata_json_path):
-        #     # 1. Читаем исходную модель
-        #     with open(model_path, 'rb') as f:
-        #         model_content = f.read()
-
-        #     # 2. Создаем Zip-архив в памяти
-        #     zip_buffer = io.BytesIO()
-        #     with zipfile.ZipFile(zip_buffer, 'w') as zf:
-        #         # Добавляем JSON описания
-        #         zf.write(metadata_json_path, "metadata.json")
-        #         # Добавляем все твои файлы меток
-        #         for file in label_files:
-        #             zf.write(file, file)
-
-        #     # 3. Склеиваем модель и Zip-архив
-        #     # В спецификации TFLite Zip-архив просто дописывается в конец файла
-        #     with open(output_path, 'wb') as f:
-        #         f.write(model_content)
-        #         f.write(zip_buffer.getvalue())
-
-        # # Использование для твоего случая:
-        # labels = [
-        #     "classification-setgamemodel-color.labels",
-        #     "classification-setgamemodel-shape.labels",
-        #     "classification-setgamemodel-fill.labels",
-        #     "classification-setgamemodel-count.labels"
-        # ]
-        # pack_tflite_with_metadata(
-        #     tflite_path, 
-        #     f"{tflite_path}.meta", 
-        #     labels, 
-        #     "classification-setgamemodel-metadata.json"
-        # )
-
-        # import flatbuffers
-        # import os
-        # import sys
-
-        # # Твои сгенерированные классы
-        # from tflite.Model import Model
-        # from tflite.ModelMetadata import ModelMetadata
-        # from tflite.Metadata import Metadata
-        # from tflite.Buffer import Buffer
-
-        # def patch_model(input_path, output_path):
-        #     with open(input_path, 'rb') as f:
-        #         buf = bytearray(f.read())
-
-        #     # 1. Распаковываем текущую модель
-        #     orig_model = Model.GetRootAs(buf, 0)
-        #     builder = flatbuffers.Builder(len(buf) + 1024)
-
-        #     # 2. Создаем Payload (само тело метаданных)
-        #     # Здесь мы создаем ModelMetadata, который Android Studio ждет внутри буфера
-        #     desc = builder.CreateString("SetGameSolver")
-        #     ModelMetadataStart(builder)
-        #     ModelMetadataAddDescription(builder, desc)
-        #     # В реальном сценарии здесь добавляются оффсеты для под-таблиц (Input/Output)
-        #     metadata_payload_offset = ModelMetadataEnd(builder)
-        #     builder.Finish(metadata_payload_offset)
-        #     payload_bytes = builder.Output()
-
-        #     # 3. Пересобираем буферы
-        #     # Нам нужно скопировать все старые буферы и добавить наш новый
-        #     new_buffers = []
-        #     for i in range(orig_model.BuffersLength()):
-        #         old_data = orig_model.Buffers(i).DataAsNumpy()
-        #         data_off = builder.CreateByteVector(old_data)
-        #         BufferStart(builder)
-        #         BufferAddData(builder, data_off)
-        #         new_buffers.append(BufferEnd(builder))
-
-        #     # Добавляем наш новый буфер с метаданными
-        #     payload_off = builder.CreateByteVector(payload_bytes)
-        #     BufferStart(builder)
-        #     BufferAddData(builder, payload_off)
-        #     new_metadata_buffer_idx = len(new_buffers)
-        #     new_buffers.append(BufferEnd(builder))
-
-        #     ModelStartBuffersVector(builder, len(new_buffers))
-        #     for b in reversed(new_buffers):
-        #         builder.PrependUOffsetTRelative(b)
-        #     final_buffers_v = builder.EndVector()
-
-        #     # 4. Пересобираем таблицу Metadata
-        #     new_metadata_entries = []
-        #     # Копируем старые (min_runtime_version, CONVERSION_METADATA)
-        #     for i in range(orig_model.MetadataLength()):
-        #         old_entry = orig_model.Metadata(i)
-        #         name_off = builder.CreateString(old_entry.Name().decode('utf-8'))
-        #         MetadataStart(builder)
-        #         MetadataAddName(builder, name_off)
-        #         MetadataAddBuffer(builder, old_entry.Buffer())
-        #         new_metadata_entries.append(MetadataEnd(builder))
-
-        #     # Добавляем запись TFLITE_METADATA, указывающую на наш новый буфер
-        #     name_off = builder.CreateString("TFLITE_METADATA")
-        #     MetadataStart(builder)
-        #     MetadataAddName(builder, name_off)
-        #     MetadataAddBuffer(builder, new_metadata_buffer_idx)
-        #     new_metadata_entries.append(MetadataEnd(builder))
-
-        #     ModelStartMetadataVector(builder, len(new_metadata_entries))
-        #     for m in reversed(new_metadata_entries):
-        #         builder.PrependUOffsetTRelative(m)
-        #     final_metadata_v = builder.EndVector()
-
-        #     # 5. Финализируем модель (копируем остальные поля)
-        #     # ВНИМАНИЕ: Для полной работы нужно скопировать Subgraphs, Tensors и т.д.
-        #     # Но так как мы не хотим хачить всю структуру, используй этот принцип:
-        #     ModelStart(builder)
-        #     ModelAddBuffers(builder, final_buffers_v)
-        #     ModelAddMetadata(builder, final_metadata_v)
-        #     # ... здесь должны быть вызовы для остальных полей из orig_model ...
-        #     model_off = ModelEnd(builder)
-        #     builder.Finish(model_off, b'TFL3') # Обязательный file_identifier
-
-        #     with open(output_path, 'wb') as f:
-        #         f.write(builder.Output())
-
-        # # ВНИМАНИЕ: Полная пересборка через Builder в Python требует копирования 
-        # # КАЖДОГО поля (Subgraphs, OperatorCodes и т.д.).
 
 # main utility code
 import argparse

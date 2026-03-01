@@ -119,21 +119,21 @@ def classification_export(
             f.write(tflite_model)
 
         # add metadata:
+        # some extra data needed from model
+        labels_file_paths = [f"classification-setgamemodel-labels-{name}.txt" 
+                             for i, name in enumerate(mdl.SetgameClassificationModel.output_names)
+        ]
+        outputs = [f"{name}_output" 
+                   for i, name in enumerate(mdl.SetgameClassificationModel.output_names)
+        ]
+
         # see https://ai.google.dev/edge/litert/conversion/tensorflow/metadata on how to update tflite metadata
         # those steps required some fixes to the code in tensorflow_lite_support.
         # see local tensorflow_lite_support/Readme.md
         import flatbuffers
         from tensorflow_lite_support.metadata import metadata as _metadata
         from tensorflow_lite_support.metadata import metadata_schema_py_generated as _metadata_fb
-        
-        labels_file_paths = [
-            "classification-setgamemodel-count.labels",
-            "classification-setgamemodel-color.labels",
-            "classification-setgamemodel-fill.labels",
-            "classification-setgamemodel-shape.labels"
-        ]
-
-
+                
         # Creates model info.
         model_meta = _metadata_fb.ModelMetadataT()
         model_meta.name = "MobileNetV3 setgame card classifier"
@@ -172,7 +172,7 @@ def classification_export(
         output_meta_arr = []
         for i in range(4):
             output_meta_arr.append(_metadata_fb.TensorMetadataT())
-            output_meta_arr[i].name = f"probability{i}" # TODO: change to the proper name
+            output_meta_arr[i].name = outputs[i] #f"probability{i}" # TODO: change to the proper name
             output_meta_arr[i].description = "Probabilities of the 1 of the 3 values of the feature."
             output_meta_arr[i].content = _metadata_fb.ContentT()
             output_meta_arr[i].content.content_properties = _metadata_fb.FeaturePropertiesT()

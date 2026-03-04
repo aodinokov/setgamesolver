@@ -15,26 +15,33 @@
  */
 package com.github.aodinokov.setgamesolver
 
-import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.RectF
+// see
+// https://github.com/tensorflow/tflite-support/blob/master/tensorflow_lite_support/java/src/java/org/tensorflow/lite/task/vision/classifier/ImageClassifier.java
+// https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/java/demo/app/src/main/java/com/example/android/tflitecamerademo/ImageClassifier.java
 import android.content.Context
-import android.util.Log
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.RectF
 import android.view.Surface
-import com.google.gson.Gson
 import com.github.aodinokov.setgamesolver.fragments.DelegationMode
-import org.tensorflow.lite.gpu.CompatibilityList
-import org.tensorflow.lite.support.image.ImageProcessor
-import org.tensorflow.lite.support.image.TensorImage
+import com.google.gson.Gson
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.nnapi.NnApiDelegate
 import org.tensorflow.lite.support.label.Category
-import org.tensorflow.lite.task.core.BaseOptions
-import org.tensorflow.lite.task.core.vision.ImageProcessingOptions
-import org.tensorflow.lite.task.vision.classifier.Classifications
-import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import java.io.BufferedReader
+import java.io.FileInputStream
+import java.io.IOException
 import java.io.InputStreamReader
 import java.lang.Double.max
 import java.lang.Double.min
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.channels.FileChannel.MapMode
 import java.util.*
 
 class ClassifierHelper(
@@ -44,96 +51,222 @@ class ClassifierHelper(
         var currentDelegate: DelegationMode = DelegationMode.Cpu,
         var classifierErrorListener: ClassifierErrorListener? = null
 ) {
-    private var imageClassifiers: Array<ImageClassifier?> =Array(4) { null }
+    private val OUTPUT_CLASSES: Int = 3
 
-    fun clearClassifier() {
-        for (i in imageClassifiers.indices)
-            imageClassifiers[i] = null
+    private var interpreter: Interpreter? = null
+    private var gpuDelegate: GpuDelegate? = null
+    private var nnapiDelegate: NnApiDelegate? = null
+
+    /** A ByteBuffer to hold image data, to be feed into Tensorflow Lite as inputs.  */
+    protected var imgData: ByteBuffer? = null
+    protected fun getImageSizeX(): Int {
+        return 224
+    }
+    protected fun getImageSizeY(): Int {
+        return 224
+    }
+    protected fun getNumBytesPerChannel(): Int {
+        return 4
+    }
+    // Pre-allocate your destination bitmap and a Canvas to write to it
+    private val targetBitmap = Bitmap.createBitmap(getImageSizeX(), getImageSizeY(), Bitmap.Config.ARGB_8888)
+    private val canvas = Canvas(targetBitmap)
+    private val matrix = Matrix()
+    private val paint = Paint(Paint.FILTER_BITMAP_FLAG) // Enables bilinear filtering for quality
+
+    /** Dimensions of inputs.  */
+    private val DIM_BATCH_SIZE: Int = 1
+    private val DIM_PIXEL_SIZE: Int = 3
+    /** Preallocated buffers for storing image data in.  */
+    private val intValues = IntArray(getImageSizeX() * getImageSizeY())
+
+    /** these values must be aligned with model config */
+    private val IMAGE_MEAN: Float = 0f//127.5f
+    private val IMAGE_STD: Float = 1f//127.5f
+    fun addPixelValue(pixelValue: Int) {
+        imgData!!.putFloat((((pixelValue shr 16) and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+        imgData!!.putFloat((((pixelValue shr 8) and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+        imgData!!.putFloat(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
     }
 
-    private fun setupClassifier(i: Int) {
-        val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
-                .setScoreThreshold(threshold)
-                .setMaxResults(3)
+    fun clearClassifier() {
+        // 1. Close the Interpreter first (if you have one)
+        interpreter?.close()
+        interpreter = null
+        // 2. Release Hardware Delegates
+        gpuDelegate?.close()
+        gpuDelegate = null
 
-        val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
+        nnapiDelegate?.close()
+        nnapiDelegate = null
+    }
+
+    // TODO: to check this - it must be quicker
+//        // Create preprocessor for the image.
+//        // See https://www.tensorflow.org/lite/inference_with_metadata/
+//        //            lite_support#imageprocessor_architecture
+//        val imageProcessor =
+//                ImageProcessor.Builder()
+//                        .build()
+//
+//        // Preprocess the image and convert it into a TensorImage for classification.
+//        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+//
+//        val imageProcessingOptions = ImageProcessingOptions.builder()
+//                .setOrientation(getOrientationFromRotation(rotation))
+//                .build()
+//
+//        return imageClassifier?.classify(tensorImage, imageProcessingOptions)
+
+    @Throws(IOException::class)
+    private fun loadModelFile(modelPath: String): ByteBuffer {
+    return context.assets.openFd(modelPath).use { fileDescriptor ->
+            val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+            val fileChannel = inputStream.channel
+            val startOffset = fileDescriptor.startOffset
+            val declaredLength = fileDescriptor.declaredLength
+            fileChannel.map(MapMode.READ_ONLY, startOffset, declaredLength)
+        }
+    }
+
+    private fun setupClassifier() {
+        // create input buffer
+        imgData = ByteBuffer.allocateDirect(
+            DIM_BATCH_SIZE
+                    * getImageSizeX()
+                    * getImageSizeY()
+                    * DIM_PIXEL_SIZE
+                    * getNumBytesPerChannel());
+        imgData!!.order(ByteOrder.nativeOrder());
+
+        // load and config model
+        val modelBuffer: ByteBuffer = loadModelFile("setgame-classify.tflite")
+
+        val options: Interpreter.Options = Interpreter.Options()
+        options.setNumThreads(numThreads)
 
         when (currentDelegate) {
-            DelegationMode.Cpu-> {
+            DelegationMode.Cpu -> {
                 // Default
             }
             DelegationMode.Gpu -> {
-                if (CompatibilityList().isDelegateSupportedOnThisDevice) {
-                    baseOptionsBuilder.useGpu()
-                } else {
-                    classifierErrorListener?.onClassifierError("Classifier creation: GPU is not supported on this device")
-                }
+                gpuDelegate = GpuDelegate()
+                options.addDelegate(gpuDelegate)
             }
             DelegationMode.Nnapi -> {
-                baseOptionsBuilder.useNnapi()
+                nnapiDelegate = NnApiDelegate()
+                options.addDelegate(nnapiDelegate)
             }
         }
-
-        optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
-
-        val modelName =
-                when (i) {
-                    NUMBER_CLASSIFIER -> "setgame-classify-number.tflite"
-                    COLOR_CLASSIFIER -> "setgame-classify-color.tflite"
-                    SHADING_CLASSIFIER -> "setgame-classify-shading.tflite"
-                    SHAPE_CLASSIFIER -> "setgame-classify-shape.tflite"
-                    else -> "setgame-classify.tflite"
-                }
-
-        try {
-            imageClassifiers[i] =
-                    ImageClassifier.createFromFileAndOptions(context, modelName, optionsBuilder.build())
-        } catch (e: IllegalStateException) {
-            classifierErrorListener?.onClassifierError(
-                    "Classifier creation:Image classifier failed to initialize. See error logs for details"
-            )
-            Log.e("Test", "TFLite failed to load model with error: " + e.message)
-        }
+        interpreter = Interpreter(modelBuffer, options)
     }
 
-    // Receive the device rotation (Surface.x values range from 0->3) and return EXIF orientation
-    // http://jpegclub.org/exif_orientation.html
-    private fun getOrientationFromRotation(rotation: Int) : ImageProcessingOptions.Orientation {
+    private fun getDegreeFromRotation(rotation: Int) : Float {
         return when (rotation) {
             Surface.ROTATION_270 ->
-                ImageProcessingOptions.Orientation.BOTTOM_RIGHT
+                0f//270f
             Surface.ROTATION_180 ->
-                ImageProcessingOptions.Orientation.RIGHT_BOTTOM
+                90f//180f
             Surface.ROTATION_90 ->
-                ImageProcessingOptions.Orientation.TOP_LEFT
+                0f//90f
             else ->
-                ImageProcessingOptions.Orientation.RIGHT_TOP
+                90f//0f
         }
     }
 
-    private fun classifyImage(i: Int, image: Bitmap, rotation: Int): List<Classifications>? {
-        if (imageClassifiers[i] == null) {
-            setupClassifier(i)
+    private fun scaleRotateAndConvert(sourceImage: Bitmap, rotation: Int) {
+        matrix.reset()
+
+        // 1. Calculate Scaling factors
+        val scaleX = getImageSizeX().toFloat() / sourceImage.width
+        val scaleY = getImageSizeY().toFloat() / sourceImage.height
+        matrix.postScale(scaleX, scaleY)
+
+        // 2. Rotate 90 degrees around the center
+        // Note: rotating 90 deg changes the aspect ratio context,
+        // so ensure your targetBitmap dimensions match your model's expected input!
+        matrix.postRotate(getDegreeFromRotation(rotation), getImageSizeX() / 2f, getImageSizeY() / 2f)
+
+        // 3. Draw onto the reused targetBitmap
+        // This clears the previous frame and draws the new transformed one
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        canvas.drawBitmap(sourceImage, matrix, paint)
+
+        // 4. Proceed to your ByteBuffer conversion
+        convertBitmapToByteBuffer(targetBitmap)
+    }
+
+    /** Writes Image data into a `ByteBuffer`.  */
+    private fun convertBitmapToByteBuffer(bitmap: Bitmap) {
+        if (imgData == null) {
+            return
         }
-        // Create preprocessor for the image.
-        // See https://www.tensorflow.org/lite/inference_with_metadata/
-        //            lite_support#imageprocessor_architecture
-        val imageProcessor =
-                ImageProcessor.Builder()
-                        .build()
+        imgData!!.rewind()
+        bitmap.getPixels(intValues, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        // Convert the image to floating point.
+        var pixel = 0
 
-        // Preprocess the image and convert it into a TensorImage for classification.
-        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+        for (i in 0 until getImageSizeX()) {
+            for (j in 0 until getImageSizeY()) {
+                val `val`: Int = intValues.get(pixel++)
+                addPixelValue(`val`)
+            }
+        }
+    }
 
-        val imageProcessingOptions = ImageProcessingOptions.builder()
-                .setOrientation(getOrientationFromRotation(rotation))
-                .build()
+    private fun getArgmax(probabilities: FloatArray): Int {
+        return probabilities.indices.maxByOrNull { probabilities[it] } ?: -1
+    }
 
-        return imageClassifiers[i]?.classify(tensorImage, imageProcessingOptions)
+    private val labelMap = mapOf<String, Array<String>>(
+        Pair("count", arrayOf("1", "2", "3")),
+        Pair("color", arrayOf("green", "purple", "red")),
+        Pair("fill", arrayOf("empty", "striped", "solid")),
+        Pair("shape", arrayOf("diamond", "oval", "squiggle")))
+    private fun getCategoryFromByteBuffer(labelId: String, buffer: ByteBuffer): Category? {
+        buffer.rewind()
+        val floats = FloatArray(buffer.capacity()/Float.SIZE_BYTES)
+        buffer.asFloatBuffer().get(floats)
+        val maxEl =  getArgmax(floats)
+        if (maxEl < 0) return null
+        if (floats[maxEl] < threshold) return null;
+        return Category(labelMap[labelId]!![maxEl], floats[maxEl])
+    }
+
+    private fun classifyImage(image: Bitmap, rotation: Int): Array<List<Category?>> {
+        if (interpreter == null) {
+            setupClassifier()
+        }
+
+        // scale bitmap to the model size
+        scaleRotateAndConvert(image, rotation)
+        // store scaled image to the buffer
+        convertBitmapToByteBuffer(targetBitmap)
+
+        // we have 4 heads
+        val countOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+        val colorOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+        val fillOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+        val shapeOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+        val outputs = mutableMapOf<Int, Any>(
+            // the same sequence that in model (I've made a mistake - swapped count and color)
+            0 to colorOut,
+            1 to countOut,
+            3 to fillOut,
+            2 to shapeOut
+        )
+        interpreter?.runForMultipleInputsOutputs(arrayOf(imgData), outputs)
+        if (interpreter == null) {
+            return arrayOf(mutableListOf(), mutableListOf(), mutableListOf(), mutableListOf())
+        }
+        return arrayOf(
+            listOfNotNull(getCategoryFromByteBuffer("count", countOut)),
+            listOfNotNull(getCategoryFromByteBuffer("color", colorOut)),
+            listOfNotNull(getCategoryFromByteBuffer("fill", fillOut)),
+            listOfNotNull(getCategoryFromByteBuffer("shape", shapeOut)))
     }
 
     private var adhocColorClassifierColormap: Array<Array<Array<Int>>>? = null
-
     /* color per bit: R = 4, G= 2, P = 1*/
     private fun getColorFlagsByPixel(pixel: Int): Int {
         //lazy init
@@ -353,18 +486,21 @@ class ClassifierHelper(
         if (buffer.width < buffer.height)
             classificationRotation = 0
 
-        val r = Array<MutableList<Category>>(imageClassifiers.size) { LinkedList<Category>() }
-        for (i in imageClassifiers.indices) {
-            if (i == COLOR_CLASSIFIER)
-                continue /*skip for now*/
-            val res = classifyImage(i, buffer, classificationRotation)
+        val r = Array<MutableList<Category>>(4) { LinkedList<Category>() }
+        val res = classifyImage(buffer, classificationRotation)
+        for (i in NUMBER_CLASSIFIER .. SHAPE_CLASSIFIER) {
+//            if (i == COLOR_CLASSIFIER)
+//                continue /*skip for now*/
 
-            res?.let {
-                if (it.isNotEmpty()) {
-                    r[i] = it[0].categories
+            if (res[i] != null && res[i].isNotEmpty()) {
+                val category = res[i].first()
+                if (category != null) {
+                    r[i] = mutableListOf(category)
                 }
             }
         }
+        return r
+
 
         // if shape and fill are classified with good probability - good time to do adhoc
         if (    r[SHAPE_CLASSIFIER].size > 0 &&

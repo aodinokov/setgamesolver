@@ -26,6 +26,7 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.RectF
+import android.util.Log
 import android.view.Surface
 import com.github.aodinokov.setgamesolver.fragments.DelegationMode
 import com.google.gson.Gson
@@ -43,6 +44,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel.MapMode
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
 
 class ClassifierHelper(
         val context: Context,
@@ -53,6 +55,7 @@ class ClassifierHelper(
 ) {
     private val OUTPUT_CLASSES: Int = 3
 
+    private val classifierLock = ReentrantLock()
     private var interpreter: Interpreter? = null
     private var gpuDelegate: GpuDelegate? = null
     private var nnapiDelegate: NnApiDelegate? = null
@@ -90,15 +93,25 @@ class ClassifierHelper(
     }
 
     fun clearClassifier() {
-        // 1. Close the Interpreter first (if you have one)
-        interpreter?.close()
-        interpreter = null
-        // 2. Release Hardware Delegates
-        gpuDelegate?.close()
-        gpuDelegate = null
+        classifierLock.lock()
 
-        nnapiDelegate?.close()
+        val localInterpreter = interpreter
+        interpreter = null
+        val localGpuDelegate = gpuDelegate
+        gpuDelegate = null
+        val localNnapiDelegate = nnapiDelegate
         nnapiDelegate = null
+
+        try {
+            // 1. Close the Interpreter first (if you have one)
+            localInterpreter?.close()
+            // 2. Release Hardware Delegates
+            localGpuDelegate?.close()
+            localNnapiDelegate?.close()
+            Thread.sleep(100)   // give some time to camera to stop
+        } finally {
+            classifierLock.unlock()
+        }
     }
 
     // TODO: to check this - it must be quicker
@@ -234,36 +247,50 @@ class ClassifierHelper(
     }
 
     private fun classifyImage(image: Bitmap, rotation: Int): Array<List<Category?>> {
-        if (interpreter == null) {
-            setupClassifier()
-        }
-
-        // scale bitmap to the model size
-        scaleRotateAndConvert(image, rotation)
-        // store scaled image to the buffer
-        convertBitmapToByteBuffer(targetBitmap)
-
-        // we have 4 heads
-        val countOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
-        val colorOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
-        val fillOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
-        val shapeOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
-        val outputs = mutableMapOf<Int, Any>(
-            // the same sequence that in model (I've made a mistake - swapped count and color)
-            0 to colorOut,
-            1 to countOut,
-            3 to fillOut,
-            2 to shapeOut
-        )
-        interpreter?.runForMultipleInputsOutputs(arrayOf(imgData), outputs)
-        if (interpreter == null) {
+        if (!classifierLock.tryLock()) {
             return arrayOf(mutableListOf(), mutableListOf(), mutableListOf(), mutableListOf())
         }
-        return arrayOf(
-            listOfNotNull(getCategoryFromByteBuffer("count", countOut)),
-            listOfNotNull(getCategoryFromByteBuffer("color", colorOut)),
-            listOfNotNull(getCategoryFromByteBuffer("fill", fillOut)),
-            listOfNotNull(getCategoryFromByteBuffer("shape", shapeOut)))
+        try {
+            if (interpreter == null) {
+                setupClassifier()   // TODO: hmm???? not sure. what if we competing with clearClassifier
+            }
+
+            // scale bitmap to the model size
+            scaleRotateAndConvert(image, rotation)
+            // store scaled image to the buffer
+            convertBitmapToByteBuffer(targetBitmap)
+
+            // we have 4 heads
+            val countOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES)
+                .order(ByteOrder.nativeOrder())
+            val colorOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES)
+                .order(ByteOrder.nativeOrder())
+            val fillOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES)
+                .order(ByteOrder.nativeOrder())
+            val shapeOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES)
+                .order(ByteOrder.nativeOrder())
+            val outputs = mutableMapOf<Int, Any>(
+                // the same sequence that in model (I've made a mistake - swapped count and color)
+                0 to colorOut,
+                1 to countOut,
+                3 to fillOut,
+                2 to shapeOut
+            )
+            try {
+                interpreter?.runForMultipleInputsOutputs(arrayOf(imgData), outputs)
+                return arrayOf(
+                    listOfNotNull(getCategoryFromByteBuffer("count", countOut)),
+                    listOfNotNull(getCategoryFromByteBuffer("color", colorOut)),
+                    listOfNotNull(getCategoryFromByteBuffer("fill", fillOut)),
+                    listOfNotNull(getCategoryFromByteBuffer("shape", shapeOut))
+                )
+            } catch (e: Exception) {
+                Log.e("TFLite", "Inference failed", e)
+                return arrayOf(mutableListOf(), mutableListOf(), mutableListOf(), mutableListOf())
+            }
+        } finally {
+            classifierLock.unlock()
+        }
     }
 
     private var adhocColorClassifierColormap: Array<Array<Array<Int>>>? = null

@@ -28,11 +28,13 @@ import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
 import org.tensorflow.lite.nnapi.NnApiDelegate
+import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.support.label.Category
+import org.tensorflow.lite.support.metadata.MetadataExtractor
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -83,6 +85,20 @@ class ClassifierHelper(
         }
     }
 
+    private var modelOutputIndexesMap = mutableMapOf<String, Int>()
+    private fun updataModelOutputIndexesMap(modelBuffer: ByteBuffer) {
+        val metadataExtractor = MetadataExtractor(modelBuffer)
+
+        val outputCount = metadataExtractor.outputTensorCount
+        for (i in 0 until outputCount) {
+            val tensorMetadata = metadataExtractor.getOutputTensorMetadata(i)
+            val humanName = tensorMetadata?.name()
+            if (humanName != null) {
+                modelOutputIndexesMap[humanName] = i
+            }
+        }
+    }
+
     @Throws(IOException::class)
     private fun loadModelFile(modelPath: String): ByteBuffer {
     return context.assets.openFd(modelPath).use { fileDescriptor ->
@@ -97,6 +113,8 @@ class ClassifierHelper(
     private fun setupClassifier() {
         // load and config model
         val modelBuffer: ByteBuffer = loadModelFile("setgame-classify.tflite")
+        // we don't want to guess idexes - lets read them
+        updataModelOutputIndexesMap(modelBuffer)
 
         val options: Interpreter.Options = Interpreter.Options()
         options.setNumThreads(numThreads)
@@ -178,14 +196,19 @@ class ClassifierHelper(
                 .order(ByteOrder.nativeOrder())
             val shapeOut = ByteBuffer.allocateDirect(OUTPUT_CLASSES * Float.SIZE_BYTES)
                 .order(ByteOrder.nativeOrder())
-            val outputs = mutableMapOf<Int, Any>(
-                // the same sequence that in model (I've made a mistake - swapped count and color)
-                0 to colorOut,
-                1 to countOut,
-                3 to fillOut,
-                2 to shapeOut
-            )
             try {
+                val outputs = mutableMapOf<Int, Any>(
+                    // the same sequence that in model (I've made a mistake - swapped count and color)
+                    0 to colorOut,
+                    1 to countOut,
+                    2 to shapeOut,
+                    3 to fillOut
+//                    modelOutputIndexesMap["count_output"]!! to countOut,
+//                    modelOutputIndexesMap["color_output"]!! to colorOut,
+//                    modelOutputIndexesMap["fill_output"]!! to fillOut,
+//                    modelOutputIndexesMap["shape_output"]!! to shapeOut
+                )
+
                 interpreter?.runForMultipleInputsOutputs(arrayOf(tensorImage.buffer), outputs)
                 return arrayOf(
                     listOfNotNull(getCategoryFromByteBuffer("count", countOut)),

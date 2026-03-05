@@ -18,7 +18,7 @@ class ClassificationDataset:
 
     @classmethod
     def _parse_folder_name(cls, folder_name):
-        """Разбирает строку вида '1-green-empty-diamonds'"""
+        """Parsing line like '1-green-empty-diamonds'"""
         parts = folder_name.lower().split('-')
         if len(parts) < 4: return None
         
@@ -29,7 +29,6 @@ class ClassificationDataset:
             fill_idx  = cls.FILLS.index(parts[2])
             # shapes mappings (can be singular or plural)
             shape_idx = cls.SHAPES_MAP[parts[3]]
-            
             return (count_idx, color_idx, fill_idx, shape_idx)
         except (ValueError, KeyError, IndexError):
             return None
@@ -42,14 +41,6 @@ class ClassificationDataset:
         labels_color = []
         labels_fill = []
         labels_shape = []
-
-        # TODO: # another approach to consider (requires different data org)
-        # random.seed(42)
-        # random.shuffle(all_paths)
-        # # splitting
-        # split_idx = int(len(all_paths) * split_ratio)
-        # train_paths = all_paths[:split_idx]
-        # val_paths = all_paths[split_idx:]
 
         # build slices
         for folder in os.listdir(root_dir):

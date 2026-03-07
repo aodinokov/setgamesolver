@@ -85,7 +85,7 @@ class ClassifierHelper(
     }
 
     private var modelOutputIndexesMap = mutableMapOf<String, Int>()
-    private fun updataModelOutputIndexesMap(modelBuffer: ByteBuffer) {
+    private fun updateModelOutputIndexesMap(modelBuffer: ByteBuffer) {
         val metadataExtractor = MetadataExtractor(modelBuffer)
 
         val outputCount = metadataExtractor.outputTensorCount
@@ -112,8 +112,8 @@ class ClassifierHelper(
     private fun setupClassifier() {
         // load and config model
         val modelBuffer: ByteBuffer = loadModelFile("setgame-classify.tflite")
-        // we don't want to guess idexes - lets read them
-        updataModelOutputIndexesMap(modelBuffer)
+        // we don't want to guess indexes - lets read them
+        updateModelOutputIndexesMap(modelBuffer)
 
         val options: Interpreter.Options = Interpreter.Options()
         options.setNumThreads(numThreads)
@@ -151,7 +151,7 @@ class ClassifierHelper(
         return probabilities.indices.maxByOrNull { probabilities[it] } ?: -1
     }
 
-    private val labelMap = mapOf<String, Array<String>>(
+    private val labelMap = mapOf(
         Pair("count", arrayOf("1", "2", "3")),
         Pair("color", arrayOf("green", "purple", "red")),
         Pair("fill", arrayOf("empty", "striped", "solid")),
@@ -162,7 +162,7 @@ class ClassifierHelper(
         buffer.asFloatBuffer().get(floats)
         val maxEl =  getArgmax(floats)
         if (maxEl < 0) return null
-        if (floats[maxEl] < threshold) return null;
+        if (floats[maxEl] < threshold) return null
         return Category(labelMap[labelId]!![maxEl], floats[maxEl])
     }
 
@@ -172,7 +172,7 @@ class ClassifierHelper(
         }
         try {
             if (interpreter == null) {
-                setupClassifier()   // hmm???? not sure. what if we competing with clearClassifier
+                setupClassifier()   // hmm???? not sure. what if we're competing with clearClassifier
             }
 
             val imageProcessor =

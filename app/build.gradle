@@ -29,13 +29,15 @@ android {
         targetSdkVersion 36
         versionCode 8
         versionName "0.4.0"
-        // This block is different from the one you use to link Gradle
-        // to your CMake or ndk-build script.
-        externalNativeBuild {
-            // For ndk-build, instead use the ndkBuild block.
-            cmake {
-                // Passes optional arguments to CMake.
-                // arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
+        // limit to arm arch to exclude x86_64 libs:
+        //        Libraries that do not support 16 KB:
+        //        base/lib/x86_64/libgpu_delegate_plugin.so
+        //        base/lib/x86_64/libtask_vision_jni.so
+        //        base/lib/x86_64/libtensorflowlite_gpu_jni.so
+        //        base/lib/x86_64/libtensorflowlite_jni.so
+        defaultConfig {
+            ndk {
+                abiFilters "arm64-v8a", "armeabi-v7a"
             }
         }
     }

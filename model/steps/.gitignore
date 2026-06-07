@@ -1,4 +1,5 @@
 .venv
 *.deb
 wrk
+wrk_d
 *.pyc

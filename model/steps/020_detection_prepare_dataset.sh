@@ -120,9 +120,3 @@ for file in glob.glob(sdir + '/*.jpg'):
   im.save(dst) #, quality=10)
   print("Saved " + file + " to " + dst)
 EOF
-
-# generate tfrecord
-wget https://github.com/techzizou/Train-Object-Detection-Model-TF-2.x/raw/refs/heads/main/generate_tfrecord.py
-python3 generate_tfrecord.py wrk_d/train_labels.csv wrk_d/label_map.pbtxt wrk_d/images/ wrk_d/train.record
-
-rm generate_tfrecord.py

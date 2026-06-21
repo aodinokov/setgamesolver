@@ -84,20 +84,6 @@ class ClassifierHelper(
         }
     }
 
-    private var modelOutputIndexesMap = mutableMapOf<String, Int>()
-    private fun updateModelOutputIndexesMap(modelBuffer: ByteBuffer) {
-        val metadataExtractor = MetadataExtractor(modelBuffer)
-
-        val outputCount = metadataExtractor.outputTensorCount
-        for (i in 0 until outputCount) {
-            val tensorMetadata = metadataExtractor.getOutputTensorMetadata(i)
-            val humanName = tensorMetadata?.name()
-            if (humanName != null) {
-                modelOutputIndexesMap[humanName] = i
-            }
-        }
-    }
-
     @Throws(IOException::class)
     private fun loadModelFile(modelPath: String): ByteBuffer {
     return context.assets.openFd(modelPath).use { fileDescriptor ->
@@ -112,9 +98,6 @@ class ClassifierHelper(
     private fun setupClassifier() {
         // load and config model
         val modelBuffer: ByteBuffer = loadModelFile("setgame-classify.tflite")
-        // we don't want to guess indexes - lets read them
-        updateModelOutputIndexesMap(modelBuffer)
-
         val options: Interpreter.Options = Interpreter.Options()
         options.setNumThreads(numThreads)
 
@@ -135,7 +118,7 @@ class ClassifierHelper(
     }
 
     private fun getRotArgFromRotation(rotation: Int) : Int {
-        return when (rotation) {
+        return when (rotation/90) {
             Surface.ROTATION_270 ->
                 0
             Surface.ROTATION_180 ->
@@ -202,10 +185,6 @@ class ClassifierHelper(
                     1 to countOut,
                     2 to shapeOut,
                     3 to fillOut
-//                    modelOutputIndexesMap["count_output"]!! to countOut,
-//                    modelOutputIndexesMap["color_output"]!! to colorOut,
-//                    modelOutputIndexesMap["fill_output"]!! to fillOut,
-//                    modelOutputIndexesMap["shape_output"]!! to shapeOut
                 )
 
                 interpreter?.runForMultipleInputsOutputs(arrayOf(tensorImage.buffer), outputs)

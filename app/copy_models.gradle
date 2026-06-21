@@ -1,7 +1,7 @@
-task copyTestModel(type: Copy) {
-    from project.ext.ASSET_DIR + '/mobilenetv1.tflite'
-    into project.ext.TEST_ASSETS_DIR
-}
+//task copyTestModel(type: Copy) {
+//    from project.ext.ASSET_DIR + '/mobilenetv1.tflite'
+//    into project.ext.TEST_ASSETS_DIR
+//}
 
 task copyTestSetGameModel(type: Copy) {
     from project.ext.ASSET_DIR
@@ -15,4 +15,4 @@ task copyTestSetGameAdhoc(type: Copy) {
     into project.ext.TEST_ASSETS_DIR
 }
 
-preBuild.dependsOn copyTestModel, copyTestSetGameModel, copyTestSetGameAdhoc
+preBuild.dependsOn copyTestSetGameModel, copyTestSetGameAdhoc

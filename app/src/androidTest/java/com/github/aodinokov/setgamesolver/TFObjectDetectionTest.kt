@@ -53,7 +53,7 @@ class TFObjectDetectionTest {
         val setgameDetectorHelper =
                 DetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
-                currentModel = DetectorHelper.MODEL_MOBILENETV1,
+                currentModel = DetectorHelper.MODEL_SETGAME,
                 detectorErrorListener =
                     object : DetectorHelper.DetectorErrorListener {
                         override fun onDetectorError(error: String) {
@@ -106,7 +106,7 @@ class TFObjectDetectionTest {
         val setgameDetectorHelper =
                 DetectorHelper(
                 context = InstrumentationRegistry.getInstrumentation().context,
-                currentModel = DetectorHelper.MODEL_MOBILENETV1,
+                currentModel = DetectorHelper.MODEL_SETGAME,
                     detectorErrorListener =
                     object : DetectorHelper.DetectorErrorListener {
                         override fun onDetectorError(error: String) {

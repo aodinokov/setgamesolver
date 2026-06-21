@@ -17,15 +17,33 @@ package com.github.aodinokov.setgamesolver
 
 import android.graphics.Bitmap
 import android.content.Context
+import android.graphics.RectF
 import android.util.Log
+import android.view.Surface
 import com.github.aodinokov.setgamesolver.fragments.DelegationMode
 import org.tensorflow.lite.gpu.CompatibilityList
+import org.tensorflow.lite.DataType
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.nnapi.NnApiDelegate
+import org.tensorflow.lite.support.common.ops.NormalizeOp
+import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
-import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.Detection
-import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import java.io.FileInputStream
+import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.channels.FileChannel.MapMode
+import java.util.concurrent.locks.ReentrantLock
+
+data class DetectionResult(
+    val boundingBox: RectF,
+    val confidence: Float,
+    val classId: Int
+)
 
 class DetectorHelper(
         val context: Context,
@@ -39,10 +57,49 @@ class DetectorHelper(
 ) {
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
     // will not change, a lazy val would be preferable.
-    private var detector: ObjectDetector? = null
+    private val classifierLock = ReentrantLock()
+    private var interpreter: Interpreter? = null
+    private var gpuDelegate: GpuDelegate? = null
+    private var nnapiDelegate: NnApiDelegate? = null
+
+    protected fun getImageSizeX(): Int {
+        return 640
+    }
+    protected fun getImageSizeY(): Int {
+        return 640
+    }
+
 
     fun clearDetector() {
-        detector = null
+        classifierLock.lock()
+        val localInterpreter = interpreter
+        interpreter = null
+        val localGpuDelegate = gpuDelegate
+        gpuDelegate = null
+        val localNnapiDelegate = nnapiDelegate
+        nnapiDelegate = null
+
+        try {
+            // 1. Close the Interpreter first (if you have one)
+            localInterpreter?.close()
+            // 2. Release Hardware Delegates
+            localGpuDelegate?.close()
+            localNnapiDelegate?.close()
+            Thread.sleep(100)   // give some time to camera to stop
+        } finally {
+            classifierLock.unlock()
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun loadModelFile(modelPath: String): ByteBuffer {
+        return context.assets.openFd(modelPath).use { fileDescriptor ->
+            val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+            val fileChannel = inputStream.channel
+            val startOffset = fileDescriptor.startOffset
+            val declaredLength = fileDescriptor.declaredLength
+            fileChannel.map(MapMode.READ_ONLY, startOffset, declaredLength)
+        }
     }
 
     // Initialize the object detector using current settings on the
@@ -50,74 +107,126 @@ class DetectorHelper(
     // that are created on the main thread and used on a background thread, but
     // the GPU delegate needs to be used on the thread that initialized the detector
     private fun setupDetector() {
-        // Create the base options for the detector using specifies max results and score threshold
-        val optionsBuilder =
-            ObjectDetector.ObjectDetectorOptions.builder()
-                .setScoreThreshold(threshold)
-                .setMaxResults(maxResults)
+        // load and config model
+        val modelBuffer: ByteBuffer = loadModelFile("setgame-detect.tflite")
 
-        // Set general detection options, including number of used threads
-        val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
+        val options: Interpreter.Options = Interpreter.Options()
+        options.setNumThreads(numThreads)
 
-        // Use the specified hardware for running the model. Default to CPU
         when (currentDelegate) {
             DelegationMode.Cpu -> {
                 // Default
             }
             DelegationMode.Gpu -> {
-                if (CompatibilityList().isDelegateSupportedOnThisDevice) {
-                    baseOptionsBuilder.useGpu()
-                } else {
-                    detectorErrorListener?.onDetectorError("Detector creations: GPU is not supported on this device")
-                }
+                gpuDelegate = GpuDelegate()
+                options.addDelegate(gpuDelegate)
             }
             DelegationMode.Nnapi -> {
-                baseOptionsBuilder.useNnapi()
+                nnapiDelegate = NnApiDelegate()
+                options.addDelegate(nnapiDelegate)
             }
         }
-
-        optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
-
-        val modelName =
-            when (currentModel) {
-                MODEL_SETGAME -> "setgame-detect.tflite"
-                MODEL_MOBILENETV1 -> "mobilenetv1.tflite"
-                else -> "mobilenetv1.tflite"
-            }
-
-        try {
-            detector =
-                ObjectDetector.createFromFileAndOptions(context, modelName, optionsBuilder.build())
-        } catch (e: IllegalStateException) {
-            detectorErrorListener?.onDetectorError(
-                "Object detector failed to initialize. See error logs for details"
-            )
-            Log.e("Test", "TFLite failed to load model with error: " + e.message)
+        interpreter = Interpreter(modelBuffer, options)
+    }
+    private fun getRotArgFromRotation(rotation: Int) : Int {
+        return when (rotation/90) {
+            Surface.ROTATION_270 ->
+                3
+            Surface.ROTATION_180 ->
+                2
+            Surface.ROTATION_90 ->
+                1
+            else ->
+                0
         }
     }
 
-    fun detect(image: Bitmap, imageRotation: Int): Triple<List<Detection>?, Int, Int> {
-        // ensure all tools are ready
-        if (detector == null) {
-            setupDetector()
+    private val outputElementCount = 1 * 300 * 6
+    private val outputBuffer: ByteBuffer = ByteBuffer.allocateDirect(outputElementCount * 4).apply {
+        // CRITICAL: Native byte order (usually Little Endian on ARM/Android)
+        order(ByteOrder.nativeOrder())
+    }
+
+    fun detect(image: Bitmap, imageRotation: Int): Triple<List<DetectionResult>?, Int, Int> {
+        val rotation = getRotArgFromRotation(imageRotation)
+        // Determine the target dimensions based on whether the image was flipped 90/270 degrees
+        val isFlipped = rotation == 1 || rotation == 3
+        val targetW = if (isFlipped) image.height else image.width
+        val targetH = if (isFlipped) image.width else image.height
+
+        if (!classifierLock.tryLock()) {
+            return Triple(null, targetH, targetW)
         }
-        // Create preprocessor for the image.
-        // See https://www.tensorflow.org/lite/inference_with_metadata/
-        //            lite_support#imageprocessor_architecture
-        val imageProcessor =
-            ImageProcessor.Builder()
-                .add(Rot90Op(-imageRotation / 90))
-                .build()
+        try {
+            if (interpreter == null) {
+                setupDetector()   // hmm???? not sure. what if we're competing with clearClassifier
+            }
 
-        // Preprocess the image and convert it into a TensorImage for detection.
-        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+            val imageProcessor =
+                ImageProcessor.Builder()
+                    .add(Rot90Op(-getRotArgFromRotation(imageRotation)))
+                    .add(ResizeOp(getImageSizeX(), getImageSizeY(), ResizeOp.ResizeMethod.BILINEAR))
+                    .add(NormalizeOp(0.0f, 255.0f))
+                    .build()
 
-        val results = detector?.detect(tensorImage)
-        detectorResultsListener?.onDetectorResults(
-            results,
-            tensorImage.height,
-            tensorImage.width)
-        return Triple(results, tensorImage.height, tensorImage.width)
+            // Preprocess the image and convert it into a TensorImage for classification.
+            val ti = TensorImage(DataType.FLOAT32)
+            ti.load(image)
+            val tensorImage = imageProcessor.process(ti)
+
+            try {
+                // Rewind buffers before use
+                outputBuffer.rewind()
+                // run
+                interpreter?.run(tensorImage.buffer, outputBuffer)
+
+                val results = parseOutputBuffer(threshold,
+                    targetH, targetW, rotation)
+                detectorResultsListener?.onDetectorResults(results,
+                    targetH, targetW)
+                return Triple(results, targetH, targetW)
+            } catch (e: Exception) {
+                Log.e("TFLite", "Inference failed", e)
+                return Triple(null, targetH, targetW)
+            }
+        } finally {
+            classifierLock.unlock()
+        }
+    }
+
+    private fun parseOutputBuffer(confidenceThreshold: Float, targetH: Int, targetW: Int, rotation: Int): List<DetectionResult> {
+        val detections = mutableListOf<DetectionResult>()
+
+        // Rewind to read from the beginning
+        outputBuffer.rewind()
+
+        // View the ByteBuffer as a FloatBuffer for easy float reads
+        val floatBuffer = outputBuffer.asFloatBuffer()
+
+        // Loop through all 300 bounding box proposals
+        for (i in 0 until 300) {
+            val baseIndex = i * 6
+
+            // Layout: [x1, y1, x2, y2, confidence, class_id]
+            val confidence = floatBuffer.get(baseIndex + 4)
+
+            if (confidence >= confidenceThreshold) {
+
+                detections.add(
+                    DetectionResult(
+                        boundingBox = RectF(
+                            floatBuffer.get(baseIndex + 0) * targetW,
+                            floatBuffer.get(baseIndex + 1) * targetH,
+                            floatBuffer.get(baseIndex + 2) * targetW,
+                            floatBuffer.get(baseIndex + 3) * targetH
+                        ),
+                        confidence = confidence,
+                        classId = floatBuffer.get(baseIndex + 5).toInt()
+                    )
+                )
+            }
+        }
+        return detections
     }
 
     interface DetectorErrorListener {
@@ -126,7 +235,7 @@ class DetectorHelper(
 
     interface DetectorResultsListener {
         fun onDetectorResults(
-                results: List<Detection>?,
+                results: List<DetectionResult>?,
                 imageHeight: Int,
                 imageWidth: Int
         )
@@ -134,7 +243,6 @@ class DetectorHelper(
 
     companion object {
         const val MODEL_SETGAME = 0
-        const val MODEL_MOBILENETV1 = 1
     }
 }
 

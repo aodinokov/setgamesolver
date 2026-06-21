@@ -69,13 +69,13 @@ import com.github.aodinokov.setgamesolver.CardShading
 import com.github.aodinokov.setgamesolver.CardShape
 import com.github.aodinokov.setgamesolver.CardValue
 import com.github.aodinokov.setgamesolver.ClassifierHelper
+import com.github.aodinokov.setgamesolver.DetectionResult
 import com.github.aodinokov.setgamesolver.DetectorHelper
 import com.github.aodinokov.setgamesolver.OverlayView
 import com.github.aodinokov.setgamesolver.R
 import com.github.aodinokov.setgamesolver.SimpleCard
 import com.github.aodinokov.setgamesolver.databinding.FragmentCameraBinding
 import org.tensorflow.lite.support.label.Category
-import org.tensorflow.lite.task.vision.detector.Detection
 import java.lang.Float.max
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
@@ -347,7 +347,7 @@ class CameraFragment : Fragment(),
     private var inferenceTime: Long = 0
 
     /* raw data after detection */
-    private var rawDetectionResults: List<Detection> = LinkedList<Detection>()
+    private var rawDetectionResults: List<DetectionResult> = LinkedList<DetectionResult>()
     /* we're keeping special objects that classify cards. override is a part of functionality */
     private var cardClassifierZones = LinkedList<CardClassifierZone>()
     /* resulting cards we were able to collect from classifier zones */
@@ -690,7 +690,7 @@ class CameraFragment : Fragment(),
             }
 
             /* reset all data */
-            rawDetectionResults = LinkedList<Detection>()
+            rawDetectionResults = LinkedList<DetectionResult>()
             cardClassifierZones.clear()
             updateSets()
 
@@ -958,11 +958,11 @@ class CameraFragment : Fragment(),
                         // Draw bounding box around detected objects
                         canvas.drawRect(boundsF, boxPaint)
 
-                        // Create text to display alongside detected objects
-                        if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME && result.categories.size > 0) {
+                        // Create text to display alongside detected objects (this is just a dbg)
+                        if (detectorHelper.currentModel != DetectorHelper.MODEL_SETGAME /*&& result.categories.size > 0*/) {
                             val shiftX = 0
-                            val label = result.categories[0].label + " "
-                            val drawableText = label + String.format("%.2f", result.categories[0].score)
+                            val label = "card" + " "//result.categories[0].label + " "
+                            val drawableText = label + String.format("%.2f", result.confidence) //result.categories[0].score)
 
                             // Draw rect behind display text
                             textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
@@ -1568,7 +1568,7 @@ class CameraFragment : Fragment(),
 
         // Update UI after objects have been detected. Extracts original image height/width
         // to scale and place bounding boxes properly through OverlayView
-        this.rawDetectionResults = detectedTriple.first ?: LinkedList<Detection>()
+        this.rawDetectionResults = detectedTriple.first ?: LinkedList<DetectionResult>()
 
         this.imageHeight = detectedTriple.second
         this.imageWidth = detectedTriple.third
@@ -1604,7 +1604,7 @@ class CameraFragment : Fragment(),
     private fun updateWithNewDetections(
             image: Bitmap,
             imageRotation: Int) {
-        val newDet = LinkedList<Detection>()
+        val newDet = LinkedList<DetectionResult>()
 
         // clean up
         handleMarkedZones()

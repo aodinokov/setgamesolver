@@ -4,3 +4,4 @@ app/build
 app/release
 app/src/androidTest/assets/setgame-classify-color.json
 app/src/androidTest/assets/*.tflite
+runs/

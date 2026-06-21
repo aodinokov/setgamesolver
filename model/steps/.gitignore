@@ -2,4 +2,5 @@
 *.deb
 wrk
 wrk_d
+wrk_d_yolo
 *.pyc

@@ -63,10 +63,10 @@ class DetectorHelper(
     private var nnapiDelegate: NnApiDelegate? = null
 
     protected fun getImageSizeX(): Int {
-        return 640
+        return 320
     }
     protected fun getImageSizeY(): Int {
-        return 640
+        return 320
     }
 
 

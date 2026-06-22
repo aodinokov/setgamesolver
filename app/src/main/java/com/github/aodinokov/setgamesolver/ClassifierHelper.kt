@@ -120,13 +120,13 @@ class ClassifierHelper(
     private fun getRotArgFromRotation(rotation: Int) : Int {
         return when (rotation/90) {
             Surface.ROTATION_270 ->
-                0
+                1
             Surface.ROTATION_180 ->
-                1
-            Surface.ROTATION_90 ->
                 0
-            else ->
+            Surface.ROTATION_90 ->
                 1
+            else ->
+                0
         }
     }
 

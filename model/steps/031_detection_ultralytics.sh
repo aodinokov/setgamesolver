@@ -9,7 +9,7 @@ pip install ultralytics-opencv-headless
 
 ./convert_csv_to_yolo.py --output_dir=wrk_d_yolo --copy_images
 
-yolo detect train data=wrk_d_yolo.yaml model=yolo26n.pt epochs=100 imgsz=640 degrees=90.0
+yolo detect train data=wrk_d_yolo.yaml model=yolo26n.pt epochs=300 imgsz=320 degrees=90.0
 # todo: https://docs.ultralytics.com/ru/modes/train#%D0%BF%D1%80%D0%B8%D0%BC%D0%B5%D1%80%D1%8B-%D0%B8%D1%81%D0%BF%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F
 # yolo train resume model=path/to/last.pt
 # runs_dir=path/to/dir

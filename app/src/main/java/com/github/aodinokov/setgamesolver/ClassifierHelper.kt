@@ -116,8 +116,8 @@ class ClassifierHelper(
         interpreter = Interpreter(modelBuffer, options)
     }
 
-    private fun getRotArgFromRotation(rotation: Int) : Int {
-        return when (rotation/90) {
+    private fun getRotArgFromSurfaceRotation(surfaceRotation: Int) : Int {
+        return when (surfaceRotation) {
             Surface.ROTATION_270 ->
                 1
             Surface.ROTATION_180 ->
@@ -148,7 +148,7 @@ class ClassifierHelper(
         return Category(labelMap[labelId]!![maxEl], floats[maxEl])
     }
 
-    private fun classifyImage(image: Bitmap, rotation: Int): Array<List<Category?>> {
+    private fun classifyImage(image: Bitmap, surfaceRotation: Int): Array<List<Category?>> {
         if (!classifierLock.tryLock()) {
             return arrayOf(mutableListOf(), mutableListOf(), mutableListOf(), mutableListOf())
         }
@@ -159,7 +159,7 @@ class ClassifierHelper(
 
             val imageProcessor =
                 ImageProcessor.Builder()
-                    .add(Rot90Op(getRotArgFromRotation(rotation)))
+                    .add(Rot90Op(getRotArgFromSurfaceRotation(surfaceRotation)))
                     .add(ResizeOp(getImageSizeX(), getImageSizeY(), ResizeOp.ResizeMethod.BILINEAR))
                     .build()
 
@@ -306,12 +306,12 @@ class ClassifierHelper(
             return null
         }
         // we want them to be vertical (this is weird - I think to trained horizontal)
-        var classificationRotation = Surface.ROTATION_90
-        if (buffer.width < buffer.height)
-            classificationRotation = 0
+        var classificationSurfaceRotation = Surface.ROTATION_90
+        if (buffer.width > buffer.height)
+            classificationSurfaceRotation = 0
 
         val r = Array<MutableList<Category>>(4) { LinkedList<Category>() }
-        val res = classifyImage(buffer, classificationRotation)
+        val res = classifyImage(buffer, classificationSurfaceRotation)
         for (i in NUMBER_CLASSIFIER .. SHAPE_CLASSIFIER) {
             if (res[i] != null && res[i].isNotEmpty()) {
                 val category = res[i].first()

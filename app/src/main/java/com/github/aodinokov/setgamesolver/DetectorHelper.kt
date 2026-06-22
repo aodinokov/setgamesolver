@@ -21,7 +21,6 @@ import android.graphics.RectF
 import android.util.Log
 import android.view.Surface
 import com.github.aodinokov.setgamesolver.fragments.DelegationMode
-import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
@@ -31,7 +30,6 @@ import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
-import org.tensorflow.lite.task.vision.detector.Detection
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer

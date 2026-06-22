@@ -27,17 +27,15 @@ android {
         applicationId "com.github.aodinokov.setgamesolver"
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 8
-        versionName "0.4.0"
+        versionCode 10
+        versionName "0.4.2"
         // limit to arm arch to exclude x86_64 libs:
         //        Libraries that do not support 16 KB:
-        //        base/lib/x86_64/libgpu_delegate_plugin.so
-        //        base/lib/x86_64/libtask_vision_jni.so
         //        base/lib/x86_64/libtensorflowlite_gpu_jni.so
         //        base/lib/x86_64/libtensorflowlite_jni.so
         defaultConfig {
             ndk {
-                abiFilters "arm64-v8a", "armeabi-v7a"
+                // abiFilters "arm64-v8a", "armeabi-v7a"
             }
         }
     }
@@ -149,19 +147,8 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
     androidTestImplementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
-    // translator
-    implementation 'org.tensorflow:tensorflow-lite:2.17.0'
-    // GPU acceleration (highly recommended for mobile)
-    implementation 'org.tensorflow:tensorflow-lite-gpu:2.17.0'
-    // API for NPU/DSP acceleration via NNAPI
-    implementation 'org.tensorflow:tensorflow-lite-api:2.17.0'
-    // Optional: Support library for easier Image/Array processing
-    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
-    implementation 'org.tensorflow:tensorflow-lite-metadata:0.4.4'
-
-    // detector related libs
-    implementation 'org.tensorflow:tensorflow-lite-task-vision:0.4.0'
-    // Import the GPU delegate plugin Library for GPU inference
-    implementation 'org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.4.0'
+    implementation 'com.google.ai.edge.litert:litert:1.4.2'
+    implementation 'com.google.ai.edge.litert:litert-gpu:1.4.2'
+    implementation 'com.google.ai.edge.litert:litert-support:1.4.2'
 }
 

@@ -33,7 +33,6 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.support.label.Category
-import org.tensorflow.lite.support.metadata.MetadataExtractor
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer

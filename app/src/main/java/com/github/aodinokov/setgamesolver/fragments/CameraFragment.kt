@@ -160,13 +160,31 @@ class CardClassifierZone(var boundingBox: RectF) {
                 var scaleY: Float)
     }
 
+    fun getIntersectionOverUnion(other: RectF): Float {
+        val left = maxOf(this.boundingBox.left, other.left)
+        val top = maxOf(this.boundingBox.top, other.top)
+        val right = minOf(this.boundingBox.right, other.right)
+        val bottom = minOf(this.boundingBox.bottom, other.bottom)
+
+        if (left < right && top < bottom) {
+            val intersectionArea = (right - left) * (bottom - top)
+            val thisArea = this.boundingBox.width() * this.boundingBox.height()
+            val otherArea = other.width() * other.height()
+            val unionArea = thisArea + otherArea - intersectionArea
+
+            return intersectionArea / unionArea
+        }
+        return 0f
+    }
     fun isWithinBoundingBox(boundingBox: RectF): Boolean {
-        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
-                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
+//        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
+//                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
+        if (this.getIntersectionOverUnion(boundingBox)>0.5){
             return true
         }
         return false
     }
+
     fun updateBoundingBox(boundingBox: RectF) {
         prevBoundingBox = this.boundingBox
         this.boundingBox = boundingBox
@@ -1604,17 +1622,20 @@ class CameraFragment : Fragment(),
     private fun updateWithNewDetections(
             image: Bitmap,
             imageRotation: Int) {
-        val newDet = LinkedList<DetectionResult>()
 
         // clean up
         handleMarkedZones()
 
         val previousCardZones = LinkedList(this.cardClassifierZones)
-        val newCardZones = LinkedList<CardClassifierZone>()
         val reDetectedCardZones = LinkedList<CardClassifierZone>()
+        val newDet = LinkedList<DetectionResult>()
+        //val newCardZones = LinkedList<CardClassifierZone>()
 
+        // split everything what came from rawDetectionResults
+        // onto newDet(detections which didn't match and reDetectedCardZones)
         val minMax = minMaxDetectionRectF()
         outer@for (det in this.rawDetectionResults) {
+
             // filter by size and skip if doesn't match
             if (det.boundingBox.width() < minMax.left ||
                     det.boundingBox.width() > minMax.right ||
@@ -1622,52 +1643,33 @@ class CameraFragment : Fragment(),
                     det.boundingBox.height() > minMax.bottom)
                 continue
 
-            for (card in previousCardZones) {
+            // find in the previously detected cards
+            for (card in this.cardClassifierZones) {
                 if (card.isWithinBoundingBox(det.boundingBox)) {
-                    // move to the re-detected list
+                    // previousCardZones must keep only the list of cards
+                    // not found in rawDetectionResults
                     previousCardZones.remove(card)
+                    // move to the re-detected list
                     reDetectedCardZones.add(card)
 
                     // mark as re-detected & update all info
                     card.updateBoundingBox(det.boundingBox)
-                    card.updateDetectedTime()
-
+                    if (card.isReClassifyCandidate()) {
+                        val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
+                        if (res != null) {
+                            card.updateCategories(res)
+                            card.updateDetectedTime()
+                        }
+                    }
                     continue@outer
                 }
             }
+
             // new card didn't find any matching card - add a new one
             newDet.add(det)
         }
 
-        // try to reClassify reDetectedCardZones if they're timed out
-        // limit this to 5 cardZones at a time - we'll update them next detection period
-        var reclassifiedCounter = 0
-        for (cardZone in reDetectedCardZones) {
-            if (!cardZone.isReClassifyCandidate())
-                continue
-            val res = classifierHelper.classify(image, imageRotation, cardZone.boundingBox)
-            if (res != null) {
-                cardZone.updateCategories(res)
-            }
-            reclassifiedCounter++
-            if (reclassifiedCounter > 5)
-                break
-        }
-
-        // classify the newly appeared cardZones in newDet and add the to newCards
-        outer@for (det in newDet) {
-            // filter overriding detections
-            for (addedCardZone in newCardZones) {
-                if (addedCardZone.isWithinBoundingBox(det.boundingBox))
-                    continue@outer
-            }
-            val res = classifierHelper.classify(image, imageRotation, det.boundingBox)
-            if (res != null/*&& res.classifications.size > 0 */) {
-                val cardZone = CardClassifierZone(det.boundingBox)
-                cardZone.updateCategories(res)
-                newCardZones.add(cardZone)
-            }
-        }
+        // TBD: this is ugly and has to be reworked
         // try to identify their new position based on the trajectory of reDetected cards
         // and re-detect them and add to reDetectedCards
         var t: CardClassifierZone.Companion.BoundingBoxTransformation? = null
@@ -1683,9 +1685,16 @@ class CameraFragment : Fragment(),
         }
 
         // we can try to transform and classify
-        for (cardZone in previousCardZones) {
+        outer@for (cardZone in previousCardZones) {
             if (t != null)
                 cardZone.applyBoundingBoxTransformation(t)
+            // filter overlapping detections
+            if (cardZone.overriddenValue == null)
+            for (existingCardZone in reDetectedCardZones) {
+                if (existingCardZone.isWithinBoundingBox(cardZone.boundingBox))
+                    continue@outer
+            }
+            // classify
             val res = classifierHelper.classify(image, imageRotation, cardZone.boundingBox)
             if (res != null &&
                     res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0 &&
@@ -1693,16 +1702,28 @@ class CameraFragment : Fragment(),
                 cardZone.updateCategories(res)
                 reDetectedCardZones.add(cardZone)
                 cardZone.updateDetectedTime()
-            }else {
+            } else {
                 if (cardZone.overriddenValue != null || !cardZone.isDetectionOutdated()){
                     reDetectedCardZones.add(cardZone)
                 }
             }
         }
 
-        // update the internal list with all we found
+        // add newly detected if they don't overlap and can be classified
+        outer@for (det in newDet) {
+            // filter overlapping detections
+            for (existingCardZone in reDetectedCardZones) {
+                if (existingCardZone.isWithinBoundingBox(det.boundingBox))
+                    continue@outer
+            }
+            val res = classifierHelper.classify(image, imageRotation, det.boundingBox)
+            if (res != null/*&& res.classifications.size > 0 */) {
+                val cardZone = CardClassifierZone(det.boundingBox)
+                cardZone.updateCategories(res)
+                reDetectedCardZones.add(cardZone)
+            }
+        }
         this.cardClassifierZones = reDetectedCardZones
-        this.cardClassifierZones.addAll(newCardZones)
     }
 
     private fun updateSets() {

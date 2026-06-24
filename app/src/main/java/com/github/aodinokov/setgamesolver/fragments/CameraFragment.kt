@@ -177,9 +177,8 @@ class CardClassifierZone(var boundingBox: RectF) {
         return 0f
     }
     fun isWithinBoundingBox(boundingBox: RectF): Boolean {
-//        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
-//                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
-        if (this.getIntersectionOverUnion(boundingBox)>0.5){
+        if ((this.boundingBox.centerX() - boundingBox.centerX()).absoluteValue < this.boundingBox.width()/2 + boundingBox.width()/2 &&
+                (this.boundingBox.centerY() - boundingBox.centerY()).absoluteValue < this.boundingBox.height()/2 + boundingBox.height()/2) {
             return true
         }
         return false
@@ -223,6 +222,12 @@ class CardClassifierZone(var boundingBox: RectF) {
 
     var overriddenValue: CardValue? = null
     private var categoriesMax = Array<Category?>(4) { null }
+    fun degradeCategories(prob: Float){
+        for (i in categoriesMax.indices) {
+            if (categoriesMax[i] != null )
+                categoriesMax[i] = Category(categoriesMax[i]!!.label, categoriesMax[i]!!.score * prob)
+        }
+    }
     fun updateCategories(newCategories: Array<MutableList<Category>>?) {
         if (newCategories == null)
             return
@@ -1145,7 +1150,7 @@ class CameraFragment : Fragment(),
                             forceRedrawIfNeeded()
                         }
                         deleteText.setOnClickListener {
-                            //this.cardClassifierZones.remove(cardClassifierZone)
+                            // this.cardClassifierZones.remove(cardClassifierZone)
                             // doesn't work because we're working in the copy of the list
                             // instead we need to mark this object as forDeletion
                             cardClassifierZone.deleteNextCycle = true
@@ -1608,20 +1613,14 @@ class CameraFragment : Fragment(),
 
     private fun handleMarkedZones() {
         // clean up
-        outer@while (true){
-            for (card in cardClassifierZones) {
-                if (card.deleteNextCycle) {
-                    cardClassifierZones.remove(card)
-                    continue@outer
-                }
-            }
-            break
-        }
+        cardClassifierZones.removeAll { card -> card.deleteNextCycle }
     }
 
     private fun updateWithNewDetections(
             image: Bitmap,
             imageRotation: Int) {
+
+        val maxIoUThresh = 0.5f
 
         // clean up
         handleMarkedZones()
@@ -1643,11 +1642,11 @@ class CameraFragment : Fragment(),
                     det.boundingBox.height() > minMax.bottom)
                 continue
 
-            var maxIoU = 0.5f // Acts as the threshold filter (replaces isWithinBoundingBox)
+            var maxIoU = maxIoUThresh // Acts as the threshold filter
             var bestMatchZone: CardClassifierZone? = null
 
             // find the best match in the previously detected cards
-            for (card in this.cardClassifierZones) {
+            for (card in previousCardZones) {
                 val currentIoU = card.getIntersectionOverUnion(det.boundingBox)
                 if (currentIoU > maxIoU) {
                     maxIoU = currentIoU
@@ -1723,12 +1722,37 @@ class CameraFragment : Fragment(),
         // add newly detected if they don't overlap and can be classified
         outer@for (det in newDet) {
             // filter overlapping detections
-            for (existingCardZone in reDetectedCardZones) {
-                if (existingCardZone.isWithinBoundingBox(det.boundingBox))
-                    continue@outer
+            var maxIoU = maxIoUThresh // Acts as the threshold filter
+            var bestMatchZone: CardClassifierZone? = null
+
+            // find the best match in the previously detected cards
+            for (card in reDetectedCardZones) {
+                val currentIoU = card.getIntersectionOverUnion(det.boundingBox)
+                if (currentIoU > maxIoU) {
+                    maxIoU = currentIoU
+                    bestMatchZone = card
+                }
             }
+
+            if (bestMatchZone != null) {
+                // if it's from previousCardZones it means it was transformed
+                // it wasn't precise and now we match, probably it's better to merge
+                if (bestMatchZone in previousCardZones) {
+                    bestMatchZone.updateBoundingBox(det.boundingBox)
+                    if (bestMatchZone.isReClassifyCandidate()) {
+                        val res = classifierHelper.classify(image, imageRotation, bestMatchZone.boundingBox)
+                        if (res != null) {
+                            bestMatchZone.degradeCategories(0.9f)
+                            bestMatchZone.updateCategories(res)
+                            bestMatchZone.updateDetectedTime()
+                        }
+                    }
+                }
+                continue@outer
+            }
+
             val res = classifierHelper.classify(image, imageRotation, det.boundingBox)
-            if (res != null/*&& res.classifications.size > 0 */) {
+            if (!res.isNullOrEmpty()) {
                 val cardZone = CardClassifierZone(det.boundingBox)
                 cardZone.updateCategories(res)
                 reDetectedCardZones.add(cardZone)

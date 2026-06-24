@@ -1643,26 +1643,37 @@ class CameraFragment : Fragment(),
                     det.boundingBox.height() > minMax.bottom)
                 continue
 
-            // find in the previously detected cards
-            for (card in this.cardClassifierZones) {
-                if (card.isWithinBoundingBox(det.boundingBox)) {
-                    // previousCardZones must keep only the list of cards
-                    // not found in rawDetectionResults
-                    previousCardZones.remove(card)
-                    // move to the re-detected list
-                    reDetectedCardZones.add(card)
+            var maxIoU = 0.5f // Acts as the threshold filter (replaces isWithinBoundingBox)
+            var bestMatchZone: CardClassifierZone? = null
 
-                    // mark as re-detected & update all info
-                    card.updateBoundingBox(det.boundingBox)
-                    if (card.isReClassifyCandidate()) {
-                        val res = classifierHelper.classify(image, imageRotation, card.boundingBox)
-                        if (res != null) {
-                            card.updateCategories(res)
-                            card.updateDetectedTime()
-                        }
-                    }
-                    continue@outer
+            // find the best match in the previously detected cards
+            for (card in this.cardClassifierZones) {
+                val currentIoU = card.getIntersectionOverUnion(det.boundingBox)
+                if (currentIoU > maxIoU) {
+                    maxIoU = currentIoU
+                    bestMatchZone = card
                 }
+            }
+
+            // If a valid match with the highest IoU was found, process it
+            if (bestMatchZone != null) {
+                // previousCardZones must keep only the list of cards
+                // not found in rawDetectionResults
+                previousCardZones.remove(bestMatchZone)
+                // move to the re-detected list
+                reDetectedCardZones.add(bestMatchZone)
+
+                // mark as re-detected & update all info
+                bestMatchZone.updateBoundingBox(det.boundingBox)
+                if (bestMatchZone.isReClassifyCandidate()) {
+                    val res = classifierHelper.classify(image, imageRotation, bestMatchZone.boundingBox)
+                    if (res != null) {
+                        bestMatchZone.updateCategories(res)
+                        bestMatchZone.updateDetectedTime()
+                    }
+                }
+                // Move to the next raw detection result
+                continue@outer
             }
 
             // new card didn't find any matching card - add a new one

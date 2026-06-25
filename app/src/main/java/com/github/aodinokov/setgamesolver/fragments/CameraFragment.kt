@@ -355,9 +355,10 @@ class CameraFragment : Fragment(),
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
 
-    /** modes */
+    /** modes & config parameters */
     private var setsFinderMode = SetsFinderMode.AllSets
     private var scanMode = ScanMode.Idle
+    private var maxIoUThresh = 0.5f
 
     /** last detection results */
     private var imageHeight: Int = 0
@@ -519,6 +520,9 @@ class CameraFragment : Fragment(),
             if (state.containsKey("currentModel")){
                 detectorHelper.currentModel = state["currentModel"].toString().toInt()
             }
+            if (state.containsKey("maxIoUThresh")){
+                maxIoUThresh = state["maxIoUThresh"].toString().toFloat()
+            }
         }
     }
 
@@ -532,6 +536,7 @@ class CameraFragment : Fragment(),
         state["numThreads"] = detectorHelper.numThreads.toString()
         state["currentDelegate"] = detectorHelper.currentDelegate.mode.toString()
         state["currentModel"] = detectorHelper.currentModel.toString()
+        state["maxIoUThresh"] = maxIoUThresh.toString()
         return gson.toJson(state)
     }
 
@@ -637,6 +642,25 @@ class CameraFragment : Fragment(),
                 writePreferences()
             }
         }
+
+        // When clicked, lower iou threshold floor
+        fragmentCameraBinding.bottomSheetLayout.iouThresholdMinus.setOnClickListener {
+            if (maxIoUThresh >= 0.1) {
+                maxIoUThresh -= 0.1f
+                updateTextControlsUi()
+                writePreferences()
+            }
+        }
+
+        // When clicked, raise iou threshold floor
+        fragmentCameraBinding.bottomSheetLayout.iouThresholdPlus.setOnClickListener {
+            if (maxIoUThresh <= 0.8) {
+                maxIoUThresh += 0.1f
+                updateTextControlsUi()
+                writePreferences()
+            }
+        }
+
 
         // When clicked, decrease the number of threads used for detection
         fragmentCameraBinding.bottomSheetLayout.threadsMinus.setOnClickListener {
@@ -1230,6 +1254,8 @@ class CameraFragment : Fragment(),
             String.format("%.2f", detectorHelper.threshold)
         fragmentCameraBinding.bottomSheetLayout.classThresholdValue.text =
                 String.format("%.2f", classifierHelper.threshold)
+        fragmentCameraBinding.bottomSheetLayout.iouThresholdValue.text =
+            String.format("%.2f", maxIoUThresh)
         fragmentCameraBinding.bottomSheetLayout.threadsValue.text =
             detectorHelper.numThreads.toString()
 
@@ -1619,8 +1645,6 @@ class CameraFragment : Fragment(),
     private fun updateWithNewDetections(
             image: Bitmap,
             imageRotation: Int) {
-
-        val maxIoUThresh = 0.5f
 
         // clean up
         handleMarkedZones()

@@ -415,7 +415,7 @@ class CameraFragment : Fragment(),
             // some very arbitrary limits
             return RectF(20f, 20f, 100f, 100f)
         }
-        return RectF(imageWidth/12f, imageHeight/12f, imageWidth/3f, imageHeight/3f)
+        return RectF(imageWidth/24f, imageHeight/24f, imageWidth/3f, imageHeight/3f)
     }
 
     override fun onResume() {
@@ -1628,7 +1628,6 @@ class CameraFragment : Fragment(),
         val previousCardZones = LinkedList(this.cardClassifierZones)
         val reDetectedCardZones = LinkedList<CardClassifierZone>()
         val newDet = LinkedList<DetectionResult>()
-        //val newCardZones = LinkedList<CardClassifierZone>()
 
         // split everything what came from rawDetectionResults
         // onto newDet(detections which didn't match and reDetectedCardZones)
@@ -1699,16 +1698,15 @@ class CameraFragment : Fragment(),
             if (t != null)
                 cardZone.applyBoundingBoxTransformation(t)
             // filter overlapping detections
-            if (cardZone.overriddenValue == null)
-            for (existingCardZone in reDetectedCardZones) {
-                if (existingCardZone.isWithinBoundingBox(cardZone.boundingBox))
-                    continue@outer
+            if (cardZone.overriddenValue == null) {
+                for (existingCardZone in reDetectedCardZones) {
+                    if (existingCardZone.isWithinBoundingBox(cardZone.boundingBox))
+                        continue@outer
+                }
             }
             // classify
             val res = classifierHelper.classify(image, imageRotation, cardZone.boundingBox)
-            if (res != null &&
-                    res[ClassifierHelper.SHAPE_CLASSIFIER].size > 0 &&
-                    res[ClassifierHelper.SHAPE_CLASSIFIER][0].score > 0.8){
+            if (res != null && res[ClassifierHelper.SHAPE_CLASSIFIER].isNotEmpty()){
                 cardZone.updateCategories(res)
                 reDetectedCardZones.add(cardZone)
                 cardZone.updateDetectedTime()
@@ -1739,13 +1737,11 @@ class CameraFragment : Fragment(),
                 // it wasn't precise and now we match, probably it's better to merge
                 if (bestMatchZone in previousCardZones) {
                     bestMatchZone.updateBoundingBox(det.boundingBox)
-                    if (bestMatchZone.isReClassifyCandidate()) {
-                        val res = classifierHelper.classify(image, imageRotation, bestMatchZone.boundingBox)
-                        if (res != null) {
-                            bestMatchZone.degradeCategories(0.9f)
-                            bestMatchZone.updateCategories(res)
-                            bestMatchZone.updateDetectedTime()
-                        }
+                    bestMatchZone.degradeCategories(0.9f)
+                    val res = classifierHelper.classify(image, imageRotation, bestMatchZone.boundingBox)
+                    if (res != null) {
+                        bestMatchZone.updateCategories(res)
+                        bestMatchZone.updateDetectedTime()
                     }
                 }
                 continue@outer

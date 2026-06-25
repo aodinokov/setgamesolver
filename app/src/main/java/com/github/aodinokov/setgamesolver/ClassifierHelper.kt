@@ -43,7 +43,7 @@ import java.util.concurrent.locks.ReentrantLock
 
 class ClassifierHelper(
         val context: Context,
-        var threshold: Float = 0.1f,
+        var threshold: Float = 0.8f,
         var numThreads: Int = 2,
         var currentDelegate: DelegationMode = DelegationMode.Cpu,
         var classifierErrorListener: ClassifierErrorListener? = null
@@ -305,7 +305,7 @@ class ClassifierHelper(
         if (!extractToBitmap(image, imageRotation, border, buffer)) {
             return null
         }
-        // we want them to be vertical (this is weird - I think to trained horizontal)
+        // we want them to be horizontal
         var classificationSurfaceRotation = Surface.ROTATION_90
         if (buffer.width > buffer.height)
             classificationSurfaceRotation = 0
@@ -313,7 +313,7 @@ class ClassifierHelper(
         val r = Array<MutableList<Category>>(4) { LinkedList<Category>() }
         val res = classifyImage(buffer, classificationSurfaceRotation)
         for (i in NUMBER_CLASSIFIER .. SHAPE_CLASSIFIER) {
-            if (res[i] != null && res[i].isNotEmpty()) {
+            if (res[i].isNotEmpty() && res[i].first() != null) {
                 val category = res[i].first()
                 if (category != null) {
                     r[i] = mutableListOf(category)
